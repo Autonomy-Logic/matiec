@@ -129,7 +129,9 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         s4o.indent_right();
         s4o.print(s4o.indent_spaces);
         
-        // Generate the FB init call: FB_TYPE_init__(&data__->VARNAME.table[__i], retain);
+        // Generate the FB init call: FB_TYPE_init__(&data__->VARNAME.value.table[__i], retain);
+        // Note: .value is needed because __DECLARE_VAR creates a wrapper type __IEC_<type>_t
+        // with a .value field containing the actual array struct
         array_base_type->accept(*this);
         s4o.print(FB_INIT_SUFFIX);
         s4o.print("(&");
@@ -137,7 +139,7 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         // Set mode to print the variable name correctly
         current_mode = none_am;
         list->get_element(i)->accept(*this);
-        s4o.print(".table[__i]");
+        s4o.print(".value.table[__i]");
         
         // Print retain parameter
         if (current_varqualifier & 0x0002) {  // retain_vq

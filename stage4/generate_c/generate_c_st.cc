@@ -425,7 +425,7 @@ void *visit(array_variable_c *symbol) {
         current_array_type = search_varfb_instance_type->get_basetype_decl(symbol->subscripted_variable);
         if (current_array_type == NULL) ERROR;
 
-        s4o.print(".table");
+        s4o.print(".value.table");
         symbol->subscript_list->accept(*this);
 
         current_array_type = NULL;
