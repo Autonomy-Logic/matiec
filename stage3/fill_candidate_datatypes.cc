@@ -2284,7 +2284,15 @@ void *fill_candidate_datatypes_c::visit(assignment_statement_c *symbol) {
 /* B 3.2.2 Subprogram Control Statements */
 /*****************************************/
 void *fill_candidate_datatypes_c::visit(fb_invocation_c *symbol) {
-	symbol_c *fb_decl = search_var_instance_decl->get_basetype_decl(symbol->fb_name);
+	/* First, type the fb_name (which may now be a complex symbolic_variable like array_variable_c) */
+	/* Note: We only populate candidate_datatypes here; datatype is set in narrow_candidate_datatypes_c */
+	if (symbol->fb_name != NULL) {
+		symbol->fb_name->accept(*this);
+	}
+	
+	/* For array elements like my_array[1], we need to use search_varfb_instance_type_c to get the element type */
+	search_varfb_instance_type_c search_varfb_instance_type(current_scope);
+	symbol_c *fb_decl = search_varfb_instance_type.get_basetype_decl(symbol->fb_name);
 	if (! get_datatype_info_c::is_function_block(fb_decl )) fb_decl = NULL;
 	if (NULL == fb_decl) ERROR; /* Although a call to a non-declared FB is a semantic error, this is currently caught by stage 2! */
 	

@@ -206,12 +206,17 @@ void *print_setter(symbol_c* symbol,
         print_variable_prefix();
         // It is my (MJS) conviction that by this time the following will always be true...
         //   wanted_variablegeneration == expression_vg;
+        // For complex FB expressions (like array elements), we need to print them directly
+        // without going through print_getter, so we temporarily set variable_prefix to NULL
+        const char *saved_prefix = this->get_variable_prefix();
+        this->set_variable_prefix(NULL);
         fb_symbol->accept(*this);
+        this->set_variable_prefix(saved_prefix);
         s4o.print(".,");
         symbol->accept(*this);
     }
     s4o.print(",");
-    s4o.print(",");    
+    s4o.print(",");
   } else {
     print_variable_prefix();
     s4o.print(",");    
@@ -1018,7 +1023,7 @@ void *visit(fb_invocation_c *symbol) {
     if (param_type == NULL) ERROR;
     
     /* now output the value assignment */
-    if (param_value != NULL)
+    if (param_value != NULL) {
       if ((param_direction == function_param_iterator_c::direction_in) ||
           (param_direction == function_param_iterator_c::direction_inout)) {
         if (this->is_variable_prefix_null()) {
@@ -1033,16 +1038,23 @@ void *visit(fb_invocation_c *symbol) {
         }
         s4o.print(";\n" + s4o.indent_spaces);
       }
+    }
   } /* for(...) */
 
   /* now call the function... */
   function_block_type_name->accept(*this);
   s4o.print(FB_FUNCTION_SUFFIX);
   s4o.print("(");
-  if (search_var_instance_decl->get_vartype(symbol->fb_name) != search_var_instance_decl_c::external_vt)
+  search_var_instance_decl_c::vt_t vt = search_var_instance_decl->get_vartype(symbol->fb_name);
+  if (vt != search_var_instance_decl_c::external_vt)
     s4o.print("&");
   print_variable_prefix();
+  // For complex FB expressions (like array elements), we need to print them directly
+  // without going through print_getter, so we temporarily set variable_prefix to NULL
+  const char *saved_prefix = this->get_variable_prefix();
+  this->set_variable_prefix(NULL);
   symbol->fb_name->accept(*this);
+  this->set_variable_prefix(saved_prefix);
   s4o.print(")");
 
   /* loop through each function parameter, find the variable to which

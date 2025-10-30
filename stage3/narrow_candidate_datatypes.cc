@@ -1694,6 +1694,11 @@ void *narrow_candidate_datatypes_c::visit(assignment_statement_c *symbol) {
 /*****************************************/
 
 void *narrow_candidate_datatypes_c::visit(fb_invocation_c *symbol) {
+	/* Visit fb_name to set datatypes on any sub-expressions (e.g., array subscripts) */
+	if (symbol->fb_name != NULL) {
+		symbol->fb_name->accept(*this);
+	}
+	
 	/* Note: We do not use the symbol->called_fb_declaration value (set in fill_candidate_datatypes_c)
 	 *       because we try to identify any other datatype errors in the expressions used in the 
 	 *       parameters to the FB call (e.g.  fb_var(var1 * 56 + func(var * 43)) )

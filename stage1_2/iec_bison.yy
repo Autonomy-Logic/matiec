@@ -7955,24 +7955,24 @@ return_statement:
 
 
 fb_invocation:
-  prev_declared_fb_name '(' ')'
+  symbolic_variable '(' ')'
 	{$$ = new fb_invocation_c($1, NULL, NULL, locloc(@$));	}
-| prev_declared_fb_name '(' param_assignment_formal_list ')'
+| symbolic_variable '(' param_assignment_formal_list ')'
 	{$$ = new fb_invocation_c($1, $3, NULL, locloc(@$));}
-| prev_declared_fb_name '(' param_assignment_nonformal_list ')'
+| symbolic_variable '(' param_assignment_nonformal_list ')'
 	{$$ = new fb_invocation_c($1, NULL, $3, locloc(@$));}
 /* ERROR_CHECK_BEGIN */
-| prev_declared_fb_name ')'
-	{$$ = NULL; print_err_msg(locl(@1), locf(@2), "'(' missing after function block name in ST statement."); yynerrs++;}
-| prev_declared_fb_name param_assignment_formal_list ')'
-	{$$ = NULL; print_err_msg(locl(@1), locf(@2), "'(' missing after function block name in ST statement."); yynerrs++;}
-| prev_declared_fb_name '(' error ')'
+| symbolic_variable ')'
+	{$$ = NULL; print_err_msg(locl(@1), locf(@2), "'(' missing after function block variable in ST statement."); yynerrs++;}
+| symbolic_variable param_assignment_formal_list ')'
+	{$$ = NULL; print_err_msg(locl(@1), locf(@2), "'(' missing after function block variable in ST statement."); yynerrs++;}
+| symbolic_variable '(' error ')'
 	{$$ = NULL; print_err_msg(locf(@3), locl(@3), "invalid parameter list in function block invocation in ST statement."); yyerrok;}
-| prev_declared_fb_name '(' error
+| symbolic_variable '(' error
 	{$$ = NULL; print_err_msg(locl(@2), locf(@3), "')' missing after parameter list of function block invocation in ST statement."); yyerrok;}
-| prev_declared_fb_name '(' param_assignment_formal_list error
+| symbolic_variable '(' param_assignment_formal_list error
 	{$$ = NULL; print_err_msg(locl(@3), locf(@4), "')' missing after parameter list of function block invocation in ST statement."); yyerrok;}
-| prev_declared_fb_name '(' param_assignment_nonformal_list error
+| symbolic_variable '(' param_assignment_nonformal_list error
 	{$$ = NULL; print_err_msg(locl(@3), locf(@4), "')' missing after parameter list of function block invocation in ST statement."); yyerrok;}
 /* ERROR_CHECK_END */
 ;
