@@ -335,8 +335,14 @@ void *visit(structured_variable_c *symbol) {
        * 
        *        For the above reason, a STEP must be handled as a FB, i.e. it does NOT contain the 'flags' and 'value' elements!
        */
-      if (   get_datatype_info_c::is_function_block(symbol->record_variable->datatype)
-          || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype)) {
+      /* SPECIAL CASE: If record_variable is an array_variable_c (e.g., my_array[1].PT), 
+       * we must NOT print the field here in the base phase. The array suffix (.table[...]) 
+       * must be printed first, then the field (.PT) in the suffix phase.
+       * Otherwise we get incorrect code like: MY_ARRAY.PT.table[0] instead of MY_ARRAY.table[0].PT
+       */
+      if (   (get_datatype_info_c::is_function_block(symbol->record_variable->datatype)
+           || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype))
+          && (dynamic_cast<array_variable_c *>(symbol->record_variable) == NULL)) {
         if (NULL == symbol->record_variable->scope) ERROR;
         search_var_instance_decl_c search_var_instance_decl(symbol->record_variable->scope);
         if      (search_var_instance_decl_c::external_vt == search_var_instance_decl.get_vartype(get_var_name_c::get_last_field(symbol->record_variable)))
@@ -351,8 +357,11 @@ void *visit(structured_variable_c *symbol) {
     case complextype_suffix_vg:
       symbol->record_variable->accept(*this);
       // the following condition MUST be a negation of the above condition used in the 'case complextype_base_vg:'
+      // SPECIAL CASE: If record_variable is an array_variable_c, we need to print the field here
+      // in the suffix phase (after .table[...]), not in the base phase.
       if (!(   get_datatype_info_c::is_function_block(symbol->record_variable->datatype)     // if the record variable is not a FB... 
-            || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype))) { // ...nor an SFC step name, then it will certainly be a structure!
+            || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype))    // ...nor an SFC step name, then it will certainly be a structure!
+          || (dynamic_cast<array_variable_c *>(symbol->record_variable) != NULL)) {          // OR if it's an array element access (e.g., my_array[1].PT)
         if (dynamic_cast<deref_operator_c *>(symbol->record_variable) != NULL)
           s4o.print("->"); /* please read the comment in visit(deref_operator_c *) tio understand what this line is doing! */
         else
