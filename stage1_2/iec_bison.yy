@@ -2579,7 +2579,7 @@ single_element_type_name:
  * Since the standard does not allow them,
  * we leave it commented out for the time being...
  */
-//| prev_declared_derived_function_block_name
+| prev_declared_derived_function_block_name
 | prev_declared_subrange_type_name
 | prev_declared_enumerated_type_name
 ;
