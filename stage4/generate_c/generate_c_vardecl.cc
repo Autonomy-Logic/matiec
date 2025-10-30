@@ -81,10 +81,17 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
     unsigned long long int array_size;
     unsigned long long int defined_values_count;
     unsigned long long int current_initialization_count;
+    unsigned int current_varqualifier;
 
   public:
-    generate_c_array_initialization_c(stage4out_c *s4o_ptr): generate_c_base_and_typeid_c(s4o_ptr) {}
+    generate_c_array_initialization_c(stage4out_c *s4o_ptr): generate_c_base_and_typeid_c(s4o_ptr) {
+      current_varqualifier = 0;  // none_vq
+    }
     ~generate_c_array_initialization_c(void) {}
+
+    void set_varqualifier(unsigned int varqualifier) {
+      current_varqualifier = varqualifier;
+    }
 
     void init_array_size(symbol_c *array_specification) {
       array_size = 1;
@@ -100,27 +107,85 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
       array_default_initialization = array_initialization;
     }
 
+    void init_fb_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
+      // Generate loop-based initialization for function block arrays
+      // For an array like ARRAY [1..2] OF TON, generate:
+      // for (int __i = 0; __i < 2; __i++) {
+      //   TON_init__(&data__->SOMETHING.table[__i], retain);
+      // }
+      
+      list_c *list = dynamic_cast<list_c *>(var1_list);
+      if (list == NULL) ERROR;
+      
+      for (int i = 0; i < list->n; i++) {
+        s4o.print("\n");
+        s4o.print(s4o.indent_spaces);
+        s4o.print("for (int __i = 0; __i < ");
+        // Print the array size
+        char size_str[32];
+        snprintf(size_str, sizeof(size_str), "%llu", array_size);
+        s4o.print(size_str);
+        s4o.print("; __i++) {\n");
+        s4o.indent_right();
+        s4o.print(s4o.indent_spaces);
+        
+        // Generate the FB init call: FB_TYPE_init__(&array.table[__i], retain);
+        array_base_type->accept(*this);
+        s4o.print(FB_INIT_SUFFIX);
+        s4o.print("(&");
+        print_variable_prefix();
+        list->get_element(i)->accept(*this);
+        s4o.print(".table[__i]");
+        
+        // Print retain parameter
+        if (current_varqualifier & 0x0002) {  // retain_vq
+          s4o.print(",1");
+        } else if (current_varqualifier & 0x0004) {  // non_retain_vq
+          s4o.print(",0");
+        } else {
+          s4o.print(",retain");
+        }
+        
+        s4o.print(");\n");
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces);
+        s4o.print("}");
+      }
+    }
+
     void init_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
       int i;
       
       init_array_size(array_specification);
       
-      s4o.print("\n");
-      s4o.print(s4o.indent_spaces + "{\n");
-      s4o.indent_right();
-      s4o.print(s4o.indent_spaces);
-      s4o.print("static const ");
+      // Check if the array base type is a function block
+      bool is_fb_array = false;
+      if (array_base_type != NULL) {
+        is_fb_array = get_datatype_info_c::is_function_block(array_base_type);
+      }
+      
+      if (is_fb_array) {
+        // Generate loop-based initialization for FB arrays
+        init_fb_array(var1_list, array_specification, array_initialization);
+      } else {
+        // Generate static const initialization for elementary type arrays
+        s4o.print("\n");
+        s4o.print(s4o.indent_spaces + "{\n");
+        s4o.indent_right();
+        s4o.print(s4o.indent_spaces);
+        s4o.print("static const ");
 
-      current_mode = typedecl_am;
-      array_specification->accept(*this);
-      s4o.print(" temp = ");
+        current_mode = typedecl_am;
+        array_specification->accept(*this);
+        s4o.print(" temp = ");
 
-      init_array_values(array_initialization);
+        init_array_values(array_initialization);
 
-      s4o.print(";\n");
-      var1_list->accept(*this);
-      s4o.indent_left();
-      s4o.print(s4o.indent_spaces + "}");
+        s4o.print(";\n");
+        var1_list->accept(*this);
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces + "}");
+      }
     }
     
     void init_array_values(symbol_c *array_initialization) {
@@ -1493,6 +1558,7 @@ void *visit(array_var_init_decl_c *symbol) {
   if (wanted_varformat == constructorinit_vf) {
     generate_c_array_initialization_c *array_initialization = new generate_c_array_initialization_c(&s4o);
     array_initialization->set_variable_prefix(get_variable_prefix());
+    array_initialization->set_varqualifier(this->current_varqualifier);
     array_initialization->init_array(symbol->var1_list, this->current_var_type_symbol, this->current_var_init_symbol);
     delete array_initialization;
   }
@@ -1635,6 +1701,7 @@ void *visit(array_var_declaration_c *symbol) {
   if (wanted_varformat == constructorinit_vf) {
     generate_c_array_initialization_c *array_initialization = new generate_c_array_initialization_c(&s4o);
     array_initialization->set_variable_prefix(get_variable_prefix());
+    array_initialization->set_varqualifier(this->current_varqualifier);
     array_initialization->init_array(symbol->var1_list, this->current_var_type_symbol, this->current_var_init_symbol);
     delete array_initialization;
   }
