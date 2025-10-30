@@ -120,6 +120,42 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
 
 
 void *print_getter(symbol_c *symbol) {
+  // SPECIAL CASE: Field access on FB array element (e.g., result := TON_ARR[1].Q)
+  // FB array elements are raw structs (not wrappers), but their fields are wrappers.
+  // We need to emit raw C code: data__->TON_ARR.value.table[idx].FIELD.value
+  // We cannot use __GET_VAR macro because it expects a wrapper type variable as the name parameter,
+  // but data__->TON_ARR.value.table[idx] is a raw FB struct, not a wrapper.
+  structured_variable_c *structured_var = dynamic_cast<structured_variable_c *>(symbol);
+  if (structured_var != NULL) {
+    array_variable_c *array_var = dynamic_cast<array_variable_c *>(structured_var->record_variable);
+    if (array_var != NULL) {
+      // Get the array type, then get the element type from it
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      symbol_c *array_element_type = get_datatype_info_c::get_array_storedtype_id(array_type);
+      if (array_element_type != NULL && get_datatype_info_c::is_function_block(array_element_type)) {
+        // Emit raw C code: data__->ARRAY.value.table[idx].FIELD.value
+        if (wanted_variablegeneration == fparam_output_vg) {
+          // For output parameters, emit address: &(data__->ARRAY.value.table[idx].FIELD.value)
+          s4o.print("&(");
+        }
+        print_variable_prefix();
+        const char *saved_prefix = this->get_variable_prefix();
+        this->set_variable_prefix(NULL);
+        wanted_variablegeneration = expression_vg;
+        array_var->accept(*this);
+        s4o.print(".");
+        structured_var->field_selector->accept(*this);
+        s4o.print(".value");
+        this->set_variable_prefix(saved_prefix);
+        if (wanted_variablegeneration == fparam_output_vg) {
+          s4o.print(")");
+        }
+        wanted_variablegeneration = expression_vg;
+        return NULL;
+      }
+    }
+  }
+
   unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
   if (wanted_variablegeneration == fparam_output_vg) {
     if (vartype == search_var_instance_decl_c::external_vt) {
@@ -169,6 +205,38 @@ void *print_setter(symbol_c* symbol,
         symbol_c* fb_symbol = NULL,
         symbol_c* fb_value = NULL) {
  
+  // SPECIAL CASE: Field access on FB array element (e.g., TON_ARR[1].IN := value)
+  // FB array elements are raw structs (not wrappers), but their fields are wrappers.
+  // We need to emit raw C code: data__->TON_ARR.value.table[idx].FIELD.value = value
+  // We cannot use __SET_VAR macro because it expects a wrapper type variable as the name parameter,
+  // but data__->TON_ARR.value.table[idx] is a raw FB struct, not a wrapper.
+  structured_variable_c *structured_var = dynamic_cast<structured_variable_c *>(symbol);
+  if (fb_symbol == NULL && structured_var != NULL) {
+    array_variable_c *array_var = dynamic_cast<array_variable_c *>(structured_var->record_variable);
+    if (array_var != NULL) {
+      // Get the array type, then get the element type from it
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      symbol_c *array_element_type = get_datatype_info_c::get_array_storedtype_id(array_type);
+      if (array_element_type != NULL && get_datatype_info_c::is_function_block(array_element_type)) {
+        // Emit raw C code: data__->ARRAY.value.table[idx].FIELD.value = value
+        print_variable_prefix();
+        const char *saved_prefix = this->get_variable_prefix();
+        this->set_variable_prefix(NULL);
+        wanted_variablegeneration = expression_vg;
+        array_var->accept(*this);
+        s4o.print(".");
+        structured_var->field_selector->accept(*this);
+        s4o.print(".value = ");
+        this->set_variable_prefix(saved_prefix);
+        // Emit the value expression
+        wanted_variablegeneration = expression_vg;
+        print_check_function(type, value, fb_value);
+        wanted_variablegeneration = expression_vg;
+        return NULL;
+      }
+    }
+  }
+
   unsigned int vartype;
   if (fb_symbol == NULL) {
     vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
