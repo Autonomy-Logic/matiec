@@ -129,11 +129,13 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         s4o.indent_right();
         s4o.print(s4o.indent_spaces);
         
-        // Generate the FB init call: FB_TYPE_init__(&array.table[__i], retain);
+        // Generate the FB init call: FB_TYPE_init__(&data__->VARNAME.table[__i], retain);
         array_base_type->accept(*this);
         s4o.print(FB_INIT_SUFFIX);
         s4o.print("(&");
         print_variable_prefix();
+        // Set mode to print the variable name correctly
+        current_mode = none_am;
         list->get_element(i)->accept(*this);
         s4o.print(".table[__i]");
         
@@ -214,7 +216,13 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         case arraysize_am:
           /* look up the type declaration... */
           iter = type_symtable.find(type_name);
-          if (iter == type_symtable.end())   ERROR;  // Type declaration not found!!
+          if (iter == type_symtable.end()) {
+            // Type not found in type_symtable. This could be a standard library
+            // function block (like TON, CTU, etc.) which are stored in 
+            // library_element_symtable (not accessible from here).
+            // Return NULL and let the caller handle it appropriately.
+            return NULL;
+          }
           iter->second->accept(*this);  // iter->second is a type_decl
           break;
         default:
@@ -263,8 +271,14 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         case arraysize_am:
           symbol->array_subrange_list->accept(*this);
           array_base_type = symbol->non_generic_type_name;
-          array_default_value = type_initial_value_c::get(symbol->non_generic_type_name);
-          if (array_default_value == NULL) ERROR;
+          // For function block arrays, we don't need a default value
+          // because they use loop-based initialization with FB_TYPE_init__()
+          if (get_datatype_info_c::is_function_block(array_base_type)) {
+            array_default_value = NULL;  // FBs don't have simple default values
+          } else {
+            array_default_value = type_initial_value_c::get(symbol->non_generic_type_name);
+            if (array_default_value == NULL) ERROR;
+          }
           break;
         case typedecl_am: {
             int implicit_id_count = symbol->anotations_map.count("generate_c_annotaton__implicit_type_id");
