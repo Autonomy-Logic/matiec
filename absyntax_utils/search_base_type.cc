@@ -123,9 +123,11 @@ void *search_base_type_c::handle_datatype_identifier(token_c *type_name) {
   if (iter2 != function_block_type_symtable.end())
     return iter2->second->accept(*this); // iter2->second is the type_decl 
   
-  /* Type declaration not found!! */
-  ERROR;
-    
+  /* Type declaration not found in type symbol tables.
+   * This could be a standard library function block (like TON, CTU, etc.)
+   * which are stored in library_element_symtable (not accessible from here).
+   * Return NULL and let the caller handle it appropriately.
+   */
   return NULL;
 }
 
