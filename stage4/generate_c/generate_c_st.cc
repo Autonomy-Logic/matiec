@@ -237,15 +237,14 @@ void *print_getter(symbol_c *symbol) {
   // For bare FB instances (e.g., when accessing VAR_IN_OUT parameters during FB invocation),
   // we need to check if the symbol is a FB and handle it specially
   if (get_datatype_info_c::is_function_block(symbol->datatype)) {
-    // This is a bare FB instance - just print it directly without macro wrappers
-    // The caller (print_check_function) will append the field name
-    print_variable_prefix();
+    // This is a bare FB instance - just print the variable name without prefix or commas
+    // The caller (print_check_function) already handles the prefix and GET_VAR macro
+    variablegeneration_t old_wanted_variablegeneration = wanted_variablegeneration;
     wanted_variablegeneration = complextype_base_vg;
     symbol->accept(*this);
-    s4o.print(",");
     wanted_variablegeneration = complextype_suffix_vg;
     symbol->accept(*this);
-    wanted_variablegeneration = expression_vg;
+    wanted_variablegeneration = old_wanted_variablegeneration;
     return NULL;
   }
   
