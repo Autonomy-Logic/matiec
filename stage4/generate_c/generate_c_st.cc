@@ -123,6 +123,20 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
       this->set_variable_prefix(saved_prefix);
     }
     
+    // Helper method to check if an array has elementary type elements
+    // Returns true for arrays of INT, BOOL, TIME, etc. (which use wrapper elements)
+    // Returns false for arrays of FBs (which use raw FB struct elements)
+    bool is_elementary_array(array_variable_c *array_var) {
+      if (array_var == NULL) return false;
+      
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      if (array_type == NULL) return false;
+      
+      symbol_c *element_type = get_datatype_info_c::get_array_storedtype_id(array_type);
+      if (element_type == NULL) return false;
+      
+      return get_datatype_info_c::is_ANY_ELEMENTARY(element_type);
+    }
     
 
 
@@ -179,6 +193,44 @@ void *print_getter(symbol_c *symbol) {
         return NULL;
       }
     }
+  }
+  
+  // Special case: Elementary array element access (e.g., INT_ARR[1])
+  // For forced variables to work correctly on array elements, we need to pass the element wrapper
+  // to the macro so it checks the element's .flags, not the array's .flags.
+  // Generate: __GET_VAR(data__->INT_ARR.value.table[idx],)
+  array_variable_c *array_var = dynamic_cast<array_variable_c *>(symbol);
+  if (array_var != NULL && is_elementary_array(array_var)) {
+    unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
+    
+    if (wanted_variablegeneration == fparam_output_vg) {
+      if (vartype == search_var_instance_decl_c::external_vt)
+        s4o.print(GET_EXTERNAL_BY_REF);
+      else if (vartype == search_var_instance_decl_c::located_vt)
+        s4o.print(GET_LOCATED_BY_REF);
+      else
+        s4o.print(GET_VAR_BY_REF);
+    }
+    else {
+      if (vartype == search_var_instance_decl_c::external_vt)
+        s4o.print(GET_EXTERNAL);
+      else if (vartype == search_var_instance_decl_c::located_vt)
+        s4o.print(GET_LOCATED);
+      else
+        s4o.print(GET_VAR);
+    }
+    
+    s4o.print("(");
+    print_variable_prefix();
+    // Print the array element wrapper path: data__->ARR.value.table[idx]
+    accept_without_prefix(array_var->subscripted_variable);
+    symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+    s4o.print(".value.table");
+    current_array_type = array_type;
+    array_var->subscript_list->accept(*this);
+    current_array_type = NULL;
+    s4o.print(",)");
+    return NULL;
   }
   
   // Default case: use standard macro generation
@@ -276,6 +328,42 @@ void *print_setter(symbol_c* symbol,
           return NULL;
         }
       }
+    }
+    
+    // Special case: Elementary array element access (e.g., INT_ARR[1] := value)
+    // For forced variables to work correctly on array elements, we need to pass the element wrapper
+    // to the macro so it checks the element's .flags, not the array's .flags.
+    // Generate: __SET_VAR(, data__->INT_ARR.value.table[idx], , value)
+    array_variable_c *array_var = dynamic_cast<array_variable_c *>(symbol);
+    if (array_var != NULL && is_elementary_array(array_var)) {
+      unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
+      
+      if (vartype == search_var_instance_decl_c::external_vt)
+        s4o.print(SET_EXTERNAL);
+      else if (vartype == search_var_instance_decl_c::located_vt)
+        s4o.print(SET_LOCATED);
+      else
+        s4o.print(SET_VAR);
+      
+      s4o.print("(");
+      // Use empty prefix approach: __SET_VAR(, element_wrapper, , value)
+      // This makes the macro check element.flags and set element.value
+      s4o.print(",");
+      print_variable_prefix();
+      // Print the array element wrapper path: data__->ARR.value.table[idx]
+      accept_without_prefix(array_var->subscripted_variable);
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      s4o.print(".value.table");
+      current_array_type = array_type;
+      array_var->subscript_list->accept(*this);
+      current_array_type = NULL;
+      s4o.print(",,");
+      // Print the value
+      wanted_variablegeneration = expression_vg;
+      print_check_function(type, value, fb_value);
+      s4o.print(")");
+      wanted_variablegeneration = expression_vg;
+      return NULL;
     }
   }
   
@@ -535,6 +623,11 @@ void *visit(array_variable_c *symbol) {
 
         s4o.print(".value.table");
         symbol->subscript_list->accept(*this);
+        
+        // For elementary array elements, append .value to access the raw value from the wrapper
+        if (is_elementary_array(symbol)) {
+          s4o.print(".value");
+        }
 
         current_array_type = NULL;
       }
