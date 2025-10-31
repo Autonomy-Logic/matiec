@@ -113,6 +113,15 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
     }
 
   private:
+    // Helper method to accept a symbol without variable prefix
+    // This is used when we need to print variable names directly without
+    // going through the getter/setter macros (e.g., for array subscripts in FB arrays)
+    void accept_without_prefix(symbol_c *symbol) {
+      const char *saved_prefix = this->get_variable_prefix();
+      this->set_variable_prefix(NULL);
+      symbol->accept(*this);
+      this->set_variable_prefix(saved_prefix);
+    }
     
     
 
@@ -158,11 +167,7 @@ void *print_getter(symbol_c *symbol) {
         print_variable_prefix();
         // Print the array access with .value.table[idx].FIELD (without trailing dot)
         // The __GET_VAR macro will add .value to access the raw value
-        // Temporarily disable variable_prefix to avoid nested __GET_VAR calls
-        const char *saved_prefix = this->get_variable_prefix();
-        this->set_variable_prefix(NULL);
-        array_var->subscripted_variable->accept(*this);
-        this->set_variable_prefix(saved_prefix);
+        accept_without_prefix(array_var->subscripted_variable);
         s4o.print(".value.table");
         current_array_type = array_type;
         array_var->subscript_list->accept(*this);
@@ -254,11 +259,7 @@ void *print_setter(symbol_c* symbol,
           s4o.print("(");
           print_variable_prefix();
           // Print the array access with .value.table[idx]. (with trailing dot)
-          // Temporarily disable variable_prefix to avoid nested __SET_VAR calls
-          const char *saved_prefix = this->get_variable_prefix();
-          this->set_variable_prefix(NULL);
-          array_var->subscripted_variable->accept(*this);
-          this->set_variable_prefix(saved_prefix);
+          accept_without_prefix(array_var->subscripted_variable);
           s4o.print(".value.table");
           current_array_type = array_type;
           array_var->subscript_list->accept(*this);
@@ -317,11 +318,8 @@ void *print_setter(symbol_c* symbol,
         // It is my (MJS) conviction that by this time the following will always be true...
         //   wanted_variablegeneration == expression_vg;
         // For complex FB expressions (like array elements), we need to print them directly
-        // without going through print_getter, so we temporarily set variable_prefix to NULL
-        const char *saved_prefix = this->get_variable_prefix();
-        this->set_variable_prefix(NULL);
-        fb_symbol->accept(*this);
-        this->set_variable_prefix(saved_prefix);
+        // without going through print_getter
+        accept_without_prefix(fb_symbol);
         s4o.print(".,");
         symbol->accept(*this);
     }
@@ -1160,11 +1158,8 @@ void *visit(fb_invocation_c *symbol) {
     s4o.print("&");
   print_variable_prefix();
   // For complex FB expressions (like array elements), we need to print them directly
-  // without going through print_getter, so we temporarily set variable_prefix to NULL
-  const char *saved_prefix = this->get_variable_prefix();
-  this->set_variable_prefix(NULL);
-  symbol->fb_name->accept(*this);
-  this->set_variable_prefix(saved_prefix);
+  // without going through print_getter
+  accept_without_prefix(symbol->fb_name);
   s4o.print(")");
 
   /* loop through each function parameter, find the variable to which
