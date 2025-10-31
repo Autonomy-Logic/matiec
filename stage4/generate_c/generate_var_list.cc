@@ -209,6 +209,30 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
     typedef struct {
       symbol_c *symbol;
     } SYMBOL;
+    
+    /* Helper class to represent an array element access in the symbol list */
+    class array_element_symbol_c : public symbol_c {
+      public:
+        symbol_c *array_var;
+        std::vector<int64_t> indices;
+        stage4out_c *s4o_ptr;
+        
+        array_element_symbol_c(symbol_c *var, const std::vector<int64_t> &idx, stage4out_c *s4o) 
+          : array_var(var), indices(idx), s4o_ptr(s4o) {}
+        
+        virtual void *accept(visitor_c &visitor) {
+          // When visited, print the array variable name followed by subscripts
+          array_var->accept(visitor);
+          s4o_ptr->print(".value.table[");
+          for (size_t i = 0; i < indices.size(); i++) {
+            if (i > 0) s4o_ptr->print("][");
+            // Indices are already zero-based, print directly
+            s4o_ptr->print_long_long_integer(indices[i], false);
+          }
+          s4o_ptr->print("]");
+          return NULL;
+        }
+    };
 
     typedef enum {
       none_dt,
@@ -295,11 +319,194 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
       }
     }
     
+    /* Helper function to recursively generate array element entries */
+    void declare_array_elements_recursive(symbol_c *var_name, symbol_c *array_spec, 
+                                          std::vector<int64_t> &indices, int dimension) {
+      array_specification_c *array = dynamic_cast<array_specification_c *>(array_spec);
+      if (array == NULL) ERROR;
+      
+      array_subrange_list_c *subrange_list = dynamic_cast<array_subrange_list_c *>(array->array_subrange_list);
+      if (subrange_list == NULL) ERROR;
+      
+      // Get the subrange for this dimension
+      if (dimension >= subrange_list->n) ERROR;
+      subrange_c *subrange = dynamic_cast<subrange_c *>(subrange_list->get_element(dimension));
+      if (subrange == NULL) ERROR;
+      
+      // Extract lower and upper bounds
+      int64_t lower_bound = 0;
+      int64_t upper_bound = 0;
+      
+      if (subrange->lower_limit->const_value._int64.is_valid()) {
+        lower_bound = subrange->lower_limit->const_value._int64.get();
+      } else if (subrange->lower_limit->const_value._uint64.is_valid()) {
+        lower_bound = (int64_t)subrange->lower_limit->const_value._uint64.get();
+      } else {
+        ERROR; // Array bounds must be constant
+      }
+      
+      if (subrange->upper_limit->const_value._int64.is_valid()) {
+        upper_bound = subrange->upper_limit->const_value._int64.get();
+      } else if (subrange->upper_limit->const_value._uint64.is_valid()) {
+        upper_bound = (int64_t)subrange->upper_limit->const_value._uint64.get();
+      } else {
+        ERROR; // Array bounds must be constant
+      }
+      
+      // Iterate through this dimension
+      for (int64_t i = lower_bound; i <= upper_bound; i++) {
+        // Push zero-based index (i - lower_bound) instead of the actual bound value
+        indices.push_back(i - lower_bound);
+        
+        if (dimension == subrange_list->n - 1) {
+          // Last dimension - generate the entry
+          declare_array_element_entry(var_name, array, indices);
+        } else {
+          // Recurse to next dimension
+          declare_array_elements_recursive(var_name, array_spec, indices, dimension + 1);
+        }
+        
+        indices.pop_back();
+      }
+    }
+    
+    /* Helper function to generate FB field entries for an array element */
+    void declare_fb_array_element_fields(symbol_c *var_name, symbol_c *fb_type, 
+                                         const std::vector<int64_t> &indices) {
+      // Get the FB type declaration
+      function_block_declaration_c *fb_decl = dynamic_cast<function_block_declaration_c *>(fb_type);
+      if (fb_decl == NULL) {
+        // Try to get it from the type name
+        fb_decl = dynamic_cast<function_block_declaration_c *>(
+          search_base_type_c::get_basetype_decl(fb_type));
+      }
+      
+      if (fb_decl == NULL) {
+        // Not a user-defined FB, might be standard library FB
+        // For standard FBs, push the array element and call accept on the type
+        array_element_symbol_c *array_elem = new array_element_symbol_c(var_name, indices, &s4o);
+        SYMBOL *current_name = new SYMBOL;
+        current_name->symbol = array_elem;
+        current_symbol_list.push_back(*current_name);
+        
+        // Visit the FB type to generate field entries
+        fb_type->accept(*this);
+        
+        current_symbol_list.pop_back();
+        delete current_name;
+        delete array_elem;
+        return;
+      }
+      
+      // Visit the FB declaration to generate field entries
+      // We need to temporarily add the array element to the symbol list
+      array_element_symbol_c *array_elem = new array_element_symbol_c(var_name, indices, &s4o);
+      SYMBOL *current_name = new SYMBOL;
+      current_name->symbol = array_elem;
+      current_symbol_list.push_back(*current_name);
+      
+      // Visit the FB type to generate field entries
+      fb_decl->accept(*this);
+      
+      current_symbol_list.pop_back();
+      delete current_name;
+      delete array_elem;
+    }
+    
+    /* Helper function to generate a single array element entry */
+    void declare_array_element_entry(symbol_c *var_name, array_specification_c *array_spec,
+                                     const std::vector<int64_t> &indices) {
+      // Get the element type
+      symbol_c *element_type = search_base_type_c::get_basetype_decl(array_spec->non_generic_type_name);
+      if (element_type == NULL) ERROR;
+      
+      // Check if element is a function block
+      bool is_fb = get_datatype_info_c::is_function_block(element_type);
+      
+      if (is_fb) {
+        // For FB arrays, generate entry for the FB instance and then its fields
+        // First, generate the FB instance entry
+        print_var_number();
+        s4o.print(";FB;");
+        print_symbol_list();
+        var_name->accept(*this);
+        s4o.print(".value.table[");
+        for (size_t i = 0; i < indices.size(); i++) {
+          if (i > 0) s4o.print("][");
+          // Indices are already zero-based, print directly
+          s4o.print_long_long_integer(indices[i], false);
+        }
+        s4o.print("];");
+        print_symbol_list();
+        var_name->accept(*this);
+        s4o.print(".value.table[");
+        for (size_t i = 0; i < indices.size(); i++) {
+          if (i > 0) s4o.print("][");
+          s4o.print_long_long_integer(indices[i], false);
+        }
+        s4o.print("];");
+        array_spec->non_generic_type_name->accept(*this);
+        s4o.print(";;");
+        print_retain();
+        s4o.print(";\n");
+        
+        // Now generate entries for FB fields
+        // We need to manually generate field entries with the correct array subscript path
+        declare_fb_array_element_fields(var_name, element_type, indices);
+      } else {
+        // For elementary type arrays, generate a single entry
+        print_var_number();
+        s4o.print(";VAR;");
+        print_symbol_list();
+        var_name->accept(*this);
+        s4o.print(".value.table[");
+        for (size_t i = 0; i < indices.size(); i++) {
+          if (i > 0) s4o.print("][");
+          // Indices are already zero-based, print directly
+          s4o.print_long_long_integer(indices[i], false);
+        }
+        s4o.print("];");
+        print_symbol_list();
+        var_name->accept(*this);
+        s4o.print(".value.table[");
+        for (size_t i = 0; i < indices.size(); i++) {
+          if (i > 0) s4o.print("][");
+          s4o.print_long_long_integer(indices[i], false);
+        }
+        s4o.print("];");
+        
+        // Print base type and type name
+        element_type->accept(*this);
+        s4o.print(";");
+        array_spec->non_generic_type_name->accept(*this);
+        s4o.print(";");
+        print_retain();
+        s4o.print(";\n");
+      }
+    }
+    
+    /* Main function to declare array elements */
+    void declare_array_elements(symbol_c *symbol) {
+      // Get the array specification
+      symbol_c *array_spec = search_base_type_c::get_basetype_decl(this->current_var_type_symbol);
+      if (array_spec == NULL) ERROR;
+      
+      array_specification_c *array = dynamic_cast<array_specification_c *>(array_spec);
+      if (array == NULL) ERROR;
+      
+      // Start recursive generation
+      std::vector<int64_t> indices;
+      declare_array_elements_recursive(symbol, array_spec, indices, 0);
+    }
+    
     void declare_variable(symbol_c *symbol) {
-      // Arrays and structures are not supported in debugging
+      // Structures are not supported in debugging
       switch (search_type_symbol->current_var_type_category) {
-          case search_type_symbol_c::array_vtc:
           case search_type_symbol_c::structure_vtc:
+          return;
+          case search_type_symbol_c::array_vtc:
+          // Arrays need special handling - generate entries for each element
+          declare_array_elements(symbol);
           return;
           default:
            break;
