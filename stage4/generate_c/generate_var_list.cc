@@ -214,10 +214,10 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
     class array_element_symbol_c : public symbol_c {
       public:
         symbol_c *array_var;
-        std::vector<int> indices;
+        std::vector<int64_t> indices;
         stage4out_c *s4o_ptr;
         
-        array_element_symbol_c(symbol_c *var, const std::vector<int> &idx, stage4out_c *s4o) 
+        array_element_symbol_c(symbol_c *var, const std::vector<int64_t> &idx, stage4out_c *s4o) 
           : array_var(var), indices(idx), s4o_ptr(s4o) {}
         
         virtual void *accept(visitor_c &visitor) {
@@ -226,9 +226,8 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
           s4o_ptr->print(".value.table[");
           for (size_t i = 0; i < indices.size(); i++) {
             if (i > 0) s4o_ptr->print("][");
-            char idx_str[32];
-            sprintf(idx_str, "%d", indices[i] - 1); // Convert to 0-based index
-            s4o_ptr->print(idx_str);
+            // Indices are already zero-based, print directly
+            s4o_ptr->print_long_long_integer(indices[i], false);
           }
           s4o_ptr->print("]");
           return NULL;
@@ -322,7 +321,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
     
     /* Helper function to recursively generate array element entries */
     void declare_array_elements_recursive(symbol_c *var_name, symbol_c *array_spec, 
-                                          std::vector<int> &indices, int dimension) {
+                                          std::vector<int64_t> &indices, int dimension) {
       array_specification_c *array = dynamic_cast<array_specification_c *>(array_spec);
       if (array == NULL) ERROR;
       
@@ -356,7 +355,8 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
       
       // Iterate through this dimension
       for (int64_t i = lower_bound; i <= upper_bound; i++) {
-        indices.push_back((int)i);
+        // Push zero-based index (i - lower_bound) instead of the actual bound value
+        indices.push_back(i - lower_bound);
         
         if (dimension == subrange_list->n - 1) {
           // Last dimension - generate the entry
@@ -372,7 +372,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
     
     /* Helper function to generate FB field entries for an array element */
     void declare_fb_array_element_fields(symbol_c *var_name, symbol_c *fb_type, 
-                                         std::vector<int> &indices) {
+                                         const std::vector<int64_t> &indices) {
       // Get the FB type declaration
       function_block_declaration_c *fb_decl = dynamic_cast<function_block_declaration_c *>(fb_type);
       if (fb_decl == NULL) {
@@ -381,7 +381,22 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
           search_base_type_c::get_basetype_decl(fb_type));
       }
       
-      if (fb_decl == NULL) return; // Not a user-defined FB, might be standard FB
+      if (fb_decl == NULL) {
+        // Not a user-defined FB, might be standard library FB
+        // For standard FBs, push the array element and call accept on the type
+        array_element_symbol_c *array_elem = new array_element_symbol_c(var_name, indices, &s4o);
+        SYMBOL *current_name = new SYMBOL;
+        current_name->symbol = array_elem;
+        current_symbol_list.push_back(*current_name);
+        
+        // Visit the FB type to generate field entries
+        fb_type->accept(*this);
+        
+        current_symbol_list.pop_back();
+        delete current_name;
+        delete array_elem;
+        return;
+      }
       
       // Visit the FB declaration to generate field entries
       // We need to temporarily add the array element to the symbol list
@@ -400,7 +415,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
     
     /* Helper function to generate a single array element entry */
     void declare_array_element_entry(symbol_c *var_name, array_specification_c *array_spec,
-                                     std::vector<int> &indices) {
+                                     const std::vector<int64_t> &indices) {
       // Get the element type
       symbol_c *element_type = search_base_type_c::get_basetype_decl(array_spec->non_generic_type_name);
       if (element_type == NULL) ERROR;
@@ -418,9 +433,8 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
         s4o.print(".value.table[");
         for (size_t i = 0; i < indices.size(); i++) {
           if (i > 0) s4o.print("][");
-          char idx_str[32];
-          sprintf(idx_str, "%d", indices[i] - 1); // Convert to 0-based index
-          s4o.print(idx_str);
+          // Indices are already zero-based, print directly
+          s4o.print_long_long_integer(indices[i], false);
         }
         s4o.print("];");
         print_symbol_list();
@@ -428,9 +442,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
         s4o.print(".value.table[");
         for (size_t i = 0; i < indices.size(); i++) {
           if (i > 0) s4o.print("][");
-          char idx_str[32];
-          sprintf(idx_str, "%d", indices[i] - 1);
-          s4o.print(idx_str);
+          s4o.print_long_long_integer(indices[i], false);
         }
         s4o.print("];");
         array_spec->non_generic_type_name->accept(*this);
@@ -450,9 +462,8 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
         s4o.print(".value.table[");
         for (size_t i = 0; i < indices.size(); i++) {
           if (i > 0) s4o.print("][");
-          char idx_str[32];
-          sprintf(idx_str, "%d", indices[i] - 1); // Convert to 0-based index
-          s4o.print(idx_str);
+          // Indices are already zero-based, print directly
+          s4o.print_long_long_integer(indices[i], false);
         }
         s4o.print("];");
         print_symbol_list();
@@ -460,9 +471,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
         s4o.print(".value.table[");
         for (size_t i = 0; i < indices.size(); i++) {
           if (i > 0) s4o.print("][");
-          char idx_str[32];
-          sprintf(idx_str, "%d", indices[i] - 1);
-          s4o.print(idx_str);
+          s4o.print_long_long_integer(indices[i], false);
         }
         s4o.print("];");
         
@@ -486,7 +495,7 @@ class generate_var_list_c: protected generate_c_base_and_typeid_c {
       if (array == NULL) ERROR;
       
       // Start recursive generation
-      std::vector<int> indices;
+      std::vector<int64_t> indices;
       declare_array_elements_recursive(symbol, array_spec, indices, 0);
     }
     
