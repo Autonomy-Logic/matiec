@@ -234,6 +234,21 @@ void *print_getter(symbol_c *symbol) {
   }
   
   // Default case: use standard macro generation
+  // For bare FB instances (e.g., when accessing VAR_IN_OUT parameters during FB invocation),
+  // we need to check if the symbol is a FB and handle it specially
+  if (get_datatype_info_c::is_function_block(symbol->datatype)) {
+    // This is a bare FB instance - just print it directly without macro wrappers
+    // The caller (print_check_function) will append the field name
+    print_variable_prefix();
+    wanted_variablegeneration = complextype_base_vg;
+    symbol->accept(*this);
+    s4o.print(",");
+    wanted_variablegeneration = complextype_suffix_vg;
+    symbol->accept(*this);
+    wanted_variablegeneration = expression_vg;
+    return NULL;
+  }
+  
   unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
   if (wanted_variablegeneration == fparam_output_vg) {
     if (vartype == search_var_instance_decl_c::external_vt) {
