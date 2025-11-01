@@ -113,13 +113,141 @@ class generate_c_st_c: public generate_c_base_and_typeid_c {
     }
 
   private:
+    // Helper method to accept a symbol without variable prefix
+    // This is used when we need to print variable names directly without
+    // going through the getter/setter macros (e.g., for array subscripts in FB arrays)
+    void accept_without_prefix(symbol_c *symbol) {
+      const char *saved_prefix = this->get_variable_prefix();
+      this->set_variable_prefix(NULL);
+      symbol->accept(*this);
+      this->set_variable_prefix(saved_prefix);
+    }
     
+    // Helper method to check if an array has elementary type elements
+    // Returns true for arrays of INT, BOOL, TIME, etc. (which use wrapper elements)
+    // Returns false for arrays of FBs (which use raw FB struct elements)
+    bool is_elementary_array(array_variable_c *array_var) {
+      if (array_var == NULL) return false;
+      
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      if (array_type == NULL) return false;
+      
+      symbol_c *element_type = get_datatype_info_c::get_array_storedtype_id(array_type);
+      if (element_type == NULL) return false;
+      
+      return get_datatype_info_c::is_ANY_ELEMENTARY(element_type);
+    }
     
 
 
 
 
 void *print_getter(symbol_c *symbol) {
+  // Special case: FB array element field access (e.g., TON_ARR[1].Q)
+  // For forced variables to work correctly, we need to make the field be the "name" parameter
+  // so the macro checks the field's .flags, not the array's .flags.
+  // Generate: __GET_VAR(data__->TON_ARR.value.table[idx]., Q, )
+  structured_variable_c *structured_var = dynamic_cast<structured_variable_c *>(symbol);
+  if (structured_var != NULL) {
+    array_variable_c *array_var = dynamic_cast<array_variable_c *>(structured_var->record_variable);
+    if (array_var != NULL) {
+      // Get the array element type
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      symbol_c *array_element_type = get_datatype_info_c::get_array_storedtype_id(array_type);
+      
+      // Check if the array element is a function block
+      if (array_element_type != NULL && get_datatype_info_c::is_function_block(array_element_type)) {
+        // Generate the macro with field as the "name" parameter
+        unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
+        
+        if (wanted_variablegeneration == fparam_output_vg) {
+          if (vartype == search_var_instance_decl_c::external_vt)
+            s4o.print(GET_EXTERNAL_BY_REF);
+          else if (vartype == search_var_instance_decl_c::located_vt)
+            s4o.print(GET_LOCATED_BY_REF);
+          else
+            s4o.print(GET_VAR_BY_REF);
+        }
+        else {
+          if (vartype == search_var_instance_decl_c::external_vt)
+            s4o.print(GET_EXTERNAL);
+          else if (vartype == search_var_instance_decl_c::located_vt)
+            s4o.print(GET_LOCATED);
+          else
+            s4o.print(GET_VAR);
+        }
+        
+        s4o.print("(");
+        print_variable_prefix();
+        // Print the array access with .value.table[idx].FIELD (without trailing dot)
+        // The __GET_VAR macro will add .value to access the raw value
+        accept_without_prefix(array_var->subscripted_variable);
+        s4o.print(".value.table");
+        current_array_type = array_type;
+        array_var->subscript_list->accept(*this);
+        current_array_type = NULL;
+        s4o.print(".");
+        // Print the field name
+        structured_var->field_selector->accept(*this);
+        s4o.print(",)");
+        return NULL;
+      }
+    }
+  }
+  
+  // Special case: Elementary array element access (e.g., INT_ARR[1])
+  // For forced variables to work correctly on array elements, we need to pass the element wrapper
+  // to the macro so it checks the element's .flags, not the array's .flags.
+  // Generate: __GET_VAR(data__->INT_ARR.value.table[idx],)
+  array_variable_c *array_var = dynamic_cast<array_variable_c *>(symbol);
+  if (array_var != NULL && is_elementary_array(array_var)) {
+    unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
+    
+    if (wanted_variablegeneration == fparam_output_vg) {
+      if (vartype == search_var_instance_decl_c::external_vt)
+        s4o.print(GET_EXTERNAL_BY_REF);
+      else if (vartype == search_var_instance_decl_c::located_vt)
+        s4o.print(GET_LOCATED_BY_REF);
+      else
+        s4o.print(GET_VAR_BY_REF);
+    }
+    else {
+      if (vartype == search_var_instance_decl_c::external_vt)
+        s4o.print(GET_EXTERNAL);
+      else if (vartype == search_var_instance_decl_c::located_vt)
+        s4o.print(GET_LOCATED);
+      else
+        s4o.print(GET_VAR);
+    }
+    
+    s4o.print("(");
+    print_variable_prefix();
+    // Print the array element wrapper path: data__->ARR.value.table[idx]
+    accept_without_prefix(array_var->subscripted_variable);
+    symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+    s4o.print(".value.table");
+    current_array_type = array_type;
+    array_var->subscript_list->accept(*this);
+    current_array_type = NULL;
+    s4o.print(",)");
+    return NULL;
+  }
+  
+  // Default case: use standard macro generation
+  // For bare FB instances (e.g., when accessing VAR_IN_OUT parameters during FB invocation),
+  // we need to check if the symbol is a FB and handle it specially
+  if (get_datatype_info_c::is_function_block(symbol->datatype)) {
+    // This is a bare FB instance - just print the variable name without prefix or commas
+    // The caller (print_check_function) already handles the prefix and GET_VAR macro
+    variablegeneration_t old_wanted_variablegeneration = wanted_variablegeneration;
+    wanted_variablegeneration = complextype_base_vg;
+    symbol->accept(*this);
+    wanted_variablegeneration = complextype_suffix_vg;
+    symbol->accept(*this);
+    wanted_variablegeneration = old_wanted_variablegeneration;
+    return NULL;
+  }
+  
   unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
   if (wanted_variablegeneration == fparam_output_vg) {
     if (vartype == search_var_instance_decl_c::external_vt) {
@@ -169,6 +297,91 @@ void *print_setter(symbol_c* symbol,
         symbol_c* fb_symbol = NULL,
         symbol_c* fb_value = NULL) {
  
+  // Special case: FB array element field access (e.g., TON_ARR[1].IN := value)
+  // For forced variables to work correctly, we need to make the field be the "name" parameter
+  // so the macro checks the field's .flags, not the array's .flags.
+  // Generate: __SET_VAR(data__->TON_ARR.value.table[idx]., IN, , value)
+  if (fb_symbol == NULL) {
+    structured_variable_c *structured_var = dynamic_cast<structured_variable_c *>(symbol);
+    if (structured_var != NULL) {
+      array_variable_c *array_var = dynamic_cast<array_variable_c *>(structured_var->record_variable);
+      if (array_var != NULL) {
+        // Get the array element type
+        symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+        symbol_c *array_element_type = get_datatype_info_c::get_array_storedtype_id(array_type);
+        
+        // Check if the array element is a function block
+        if (array_element_type != NULL && get_datatype_info_c::is_function_block(array_element_type)) {
+          // Generate the macro with field as the "name" parameter
+          unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
+          
+          if (vartype == search_var_instance_decl_c::external_vt)
+            s4o.print(SET_EXTERNAL);
+          else if (vartype == search_var_instance_decl_c::located_vt)
+            s4o.print(SET_LOCATED);
+          else
+            s4o.print(SET_VAR);
+          
+          s4o.print("(");
+          print_variable_prefix();
+          // Print the array access with .value.table[idx]. (with trailing dot)
+          accept_without_prefix(array_var->subscripted_variable);
+          s4o.print(".value.table");
+          current_array_type = array_type;
+          array_var->subscript_list->accept(*this);
+          current_array_type = NULL;
+          s4o.print(".,");
+          // Print the field name (this becomes the "name" parameter)
+          structured_var->field_selector->accept(*this);
+          s4o.print(",,");
+          // Print the value
+          wanted_variablegeneration = expression_vg;
+          print_check_function(type, value, fb_value);
+          s4o.print(")");
+          wanted_variablegeneration = expression_vg;
+          return NULL;
+        }
+      }
+    }
+    
+    // Special case: Elementary array element access (e.g., INT_ARR[1] := value)
+    // For forced variables to work correctly on array elements, we need to pass the element wrapper
+    // to the macro so it checks the element's .flags, not the array's .flags.
+    // Generate: __SET_VAR(, data__->INT_ARR.value.table[idx], , value)
+    array_variable_c *array_var = dynamic_cast<array_variable_c *>(symbol);
+    if (array_var != NULL && is_elementary_array(array_var)) {
+      unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
+      
+      if (vartype == search_var_instance_decl_c::external_vt)
+        s4o.print(SET_EXTERNAL);
+      else if (vartype == search_var_instance_decl_c::located_vt)
+        s4o.print(SET_LOCATED);
+      else
+        s4o.print(SET_VAR);
+      
+      s4o.print("(");
+      // Use empty prefix approach: __SET_VAR(, element_wrapper, , value)
+      // This makes the macro check element.flags and set element.value
+      s4o.print(",");
+      print_variable_prefix();
+      // Print the array element wrapper path: data__->ARR.value.table[idx]
+      accept_without_prefix(array_var->subscripted_variable);
+      symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+      s4o.print(".value.table");
+      current_array_type = array_type;
+      array_var->subscript_list->accept(*this);
+      current_array_type = NULL;
+      s4o.print(",,");
+      // Print the value
+      wanted_variablegeneration = expression_vg;
+      print_check_function(type, value, fb_value);
+      s4o.print(")");
+      wanted_variablegeneration = expression_vg;
+      return NULL;
+    }
+  }
+  
+  // Default case: use standard macro generation
   unsigned int vartype;
   if (fb_symbol == NULL) {
     vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
@@ -206,12 +419,14 @@ void *print_setter(symbol_c* symbol,
         print_variable_prefix();
         // It is my (MJS) conviction that by this time the following will always be true...
         //   wanted_variablegeneration == expression_vg;
-        fb_symbol->accept(*this);
+        // For complex FB expressions (like array elements), we need to print them directly
+        // without going through print_getter
+        accept_without_prefix(fb_symbol);
         s4o.print(".,");
         symbol->accept(*this);
     }
     s4o.print(",");
-    s4o.print(",");    
+    s4o.print(",");
   } else {
     print_variable_prefix();
     s4o.print(",");    
@@ -335,8 +550,14 @@ void *visit(structured_variable_c *symbol) {
        * 
        *        For the above reason, a STEP must be handled as a FB, i.e. it does NOT contain the 'flags' and 'value' elements!
        */
-      if (   get_datatype_info_c::is_function_block(symbol->record_variable->datatype)
-          || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype)) {
+      /* SPECIAL CASE: If record_variable is an array_variable_c (e.g., my_array[1].PT), 
+       * we must NOT print the field here in the base phase. The array suffix (.table[...]) 
+       * must be printed first, then the field (.PT) in the suffix phase.
+       * Otherwise we get incorrect code like: MY_ARRAY.PT.table[0] instead of MY_ARRAY.table[0].PT
+       */
+      if (   (get_datatype_info_c::is_function_block(symbol->record_variable->datatype)
+           || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype))
+          && (dynamic_cast<array_variable_c *>(symbol->record_variable) == NULL)) {
         if (NULL == symbol->record_variable->scope) ERROR;
         search_var_instance_decl_c search_var_instance_decl(symbol->record_variable->scope);
         if      (search_var_instance_decl_c::external_vt == search_var_instance_decl.get_vartype(get_var_name_c::get_last_field(symbol->record_variable)))
@@ -351,8 +572,11 @@ void *visit(structured_variable_c *symbol) {
     case complextype_suffix_vg:
       symbol->record_variable->accept(*this);
       // the following condition MUST be a negation of the above condition used in the 'case complextype_base_vg:'
+      // SPECIAL CASE: If record_variable is an array_variable_c, we need to print the field here
+      // in the suffix phase (after .table[...]), not in the base phase.
       if (!(   get_datatype_info_c::is_function_block(symbol->record_variable->datatype)     // if the record variable is not a FB... 
-            || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype))) { // ...nor an SFC step name, then it will certainly be a structure!
+            || get_datatype_info_c::is_sfc_step      (symbol->record_variable->datatype))    // ...nor an SFC step name, then it will certainly be a structure!
+          || (dynamic_cast<array_variable_c *>(symbol->record_variable) != NULL)) {          // OR if it's an array element access (e.g., my_array[1].PT)
         if (dynamic_cast<deref_operator_c *>(symbol->record_variable) != NULL)
           s4o.print("->"); /* please read the comment in visit(deref_operator_c *) tio understand what this line is doing! */
         else
@@ -411,8 +635,13 @@ void *visit(array_variable_c *symbol) {
         current_array_type = search_varfb_instance_type->get_basetype_decl(symbol->subscripted_variable);
         if (current_array_type == NULL) ERROR;
 
-        s4o.print(".table");
+        s4o.print(".value.table");
         symbol->subscript_list->accept(*this);
+        
+        // For elementary array elements, append .value to access the raw value from the wrapper
+        if (is_elementary_array(symbol)) {
+          s4o.print(".value");
+        }
 
         current_array_type = NULL;
       }
@@ -1009,7 +1238,7 @@ void *visit(fb_invocation_c *symbol) {
     if (param_type == NULL) ERROR;
     
     /* now output the value assignment */
-    if (param_value != NULL)
+    if (param_value != NULL) {
       if ((param_direction == function_param_iterator_c::direction_in) ||
           (param_direction == function_param_iterator_c::direction_inout)) {
         if (this->is_variable_prefix_null()) {
@@ -1024,16 +1253,20 @@ void *visit(fb_invocation_c *symbol) {
         }
         s4o.print(";\n" + s4o.indent_spaces);
       }
+    }
   } /* for(...) */
 
   /* now call the function... */
   function_block_type_name->accept(*this);
   s4o.print(FB_FUNCTION_SUFFIX);
   s4o.print("(");
-  if (search_var_instance_decl->get_vartype(symbol->fb_name) != search_var_instance_decl_c::external_vt)
+  search_var_instance_decl_c::vt_t vt = search_var_instance_decl->get_vartype(symbol->fb_name);
+  if (vt != search_var_instance_decl_c::external_vt)
     s4o.print("&");
   print_variable_prefix();
-  symbol->fb_name->accept(*this);
+  // For complex FB expressions (like array elements), we need to print them directly
+  // without going through print_getter
+  accept_without_prefix(symbol->fb_name);
   s4o.print(")");
 
   /* loop through each function parameter, find the variable to which

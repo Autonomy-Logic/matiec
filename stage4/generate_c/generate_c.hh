@@ -50,6 +50,7 @@
 
 
 #include <string>
+#include <vector>
 #include "../../absyntax/absyntax.hh"
 #include "../../absyntax/visitor.hh"
 

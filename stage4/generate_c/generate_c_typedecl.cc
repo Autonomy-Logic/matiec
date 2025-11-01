@@ -555,17 +555,45 @@ void *visit(array_type_declaration_c *symbol) {
     goto end; // already defined. No need to define it again!!
   datatypes_already_defined[id->value] = 1; // insert this datatype into the list of already defined arrays!
   
-  current_typedefinition = array_td;
-  current_type_name = id;
+  {
+    current_typedefinition = array_td;
+    current_type_name = id;
 
-  s4o_incl.print("__DECLARE_ARRAY_TYPE(");
-  current_type_name->accept(*generate_c_typeid);
-  s4o_incl.print(",");
-  symbol->array_spec_init->accept(*this); // always calls array_spec_init_c
-  s4o_incl.print(")\n");
+    // Determine if we need to use __DECLARE_ARRAY_TYPE_WRAPPER for base type arrays
+    // Extract the base type from the array specification
+    symbol_c *base_type = NULL;
+    array_spec_init_c *array_spec_init = dynamic_cast<array_spec_init_c *>(symbol->array_spec_init);
+    if (array_spec_init != NULL) {
+      array_specification_c *array_spec = dynamic_cast<array_specification_c *>(array_spec_init->array_specification);
+      if (array_spec != NULL) {
+        base_type = array_spec->non_generic_type_name;
+      }
+    }
+    
+    // Check if base type is elementary (use wrapper) or function block (no wrapper)
+    bool use_wrapper_macro = false;
+    if (base_type != NULL) {
+      // Get the actual type (resolve any derived type aliases)
+      symbol_c *base_type_decl = search_base_type_c::get_basetype_decl(base_type);
+      if (base_type_decl != NULL) {
+        // Use wrapper macro for elementary types, regular macro for FBs
+        use_wrapper_macro = get_datatype_info_c::is_ANY_ELEMENTARY(base_type_decl);
+      }
+    }
 
-  current_type_name = NULL;
-  current_typedefinition = none_td;
+    if (use_wrapper_macro) {
+      s4o_incl.print("__DECLARE_ARRAY_TYPE_WRAPPER(");
+    } else {
+      s4o_incl.print("__DECLARE_ARRAY_TYPE(");
+    }
+    current_type_name->accept(*generate_c_typeid);
+    s4o_incl.print(",");
+    symbol->array_spec_init->accept(*this); // always calls array_spec_init_c
+    s4o_incl.print(")\n");
+
+    current_type_name = NULL;
+    current_typedefinition = none_td;
+  }
 
 end:  
   symbol                 ->anotations_map["generate_c_annotaton__implicit_type_id"] = id;

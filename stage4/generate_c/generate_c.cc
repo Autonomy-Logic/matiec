@@ -478,6 +478,14 @@ class analyse_variable_c: public search_visitor_c {
         symbol = singleton_->first_non_fb_identifier;
       }
       
+      // If symbol is NULL after reassignment (e.g., when accessing a FB instance directly
+      // without a field selector, as happens with VAR_IN_OUT parameters during FB invocation),
+      // use the original symbol passed to this function instead.
+      if (NULL == symbol) {
+        // Restore the original symbol - it's a FB instance, so we need to look it up in the scope
+        symbol = first_non_fb;
+      }
+      
       search_var_instance_decl_c search_var_instance_decl(scope);
       
       return search_var_instance_decl.get_vartype(symbol);

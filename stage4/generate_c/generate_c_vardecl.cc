@@ -81,10 +81,17 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
     unsigned long long int array_size;
     unsigned long long int defined_values_count;
     unsigned long long int current_initialization_count;
+    unsigned int current_varqualifier;
 
   public:
-    generate_c_array_initialization_c(stage4out_c *s4o_ptr): generate_c_base_and_typeid_c(s4o_ptr) {}
+    generate_c_array_initialization_c(stage4out_c *s4o_ptr): generate_c_base_and_typeid_c(s4o_ptr) {
+      current_varqualifier = 0;  // none_vq
+    }
     ~generate_c_array_initialization_c(void) {}
+
+    void set_varqualifier(unsigned int varqualifier) {
+      current_varqualifier = varqualifier;
+    }
 
     void init_array_size(symbol_c *array_specification) {
       array_size = 1;
@@ -100,27 +107,225 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
       array_default_initialization = array_initialization;
     }
 
+    void init_fb_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
+      // Generate loop-based initialization for function block arrays
+      // For an array like ARRAY [1..2] OF TON, generate:
+      // for (int __i = 0; __i < 2; __i++) {
+      //   TON_init__(&data__->SOMETHING.table[__i], retain);
+      // }
+      
+      list_c *list = dynamic_cast<list_c *>(var1_list);
+      if (list == NULL) ERROR;
+      
+      for (int i = 0; i < list->n; i++) {
+        s4o.print("\n");
+        s4o.print(s4o.indent_spaces);
+        s4o.print("for (int __i = 0; __i < ");
+        // Print the array size
+        char size_str[32];
+        snprintf(size_str, sizeof(size_str), "%llu", array_size);
+        s4o.print(size_str);
+        s4o.print("; __i++) {\n");
+        s4o.indent_right();
+        s4o.print(s4o.indent_spaces);
+        
+        // Generate the FB init call: FB_TYPE_init__(&data__->VARNAME.value.table[__i], retain);
+        // Note: .value is needed because __DECLARE_VAR creates a wrapper type __IEC_<type>_t
+        // with a .value field containing the actual array struct
+        array_base_type->accept(*this);
+        s4o.print(FB_INIT_SUFFIX);
+        s4o.print("(&");
+        print_variable_prefix();
+        // Set mode to print the variable name correctly
+        current_mode = none_am;
+        list->get_element(i)->accept(*this);
+        s4o.print(".value.table[__i]");
+        
+        // Print retain parameter
+        if (current_varqualifier & 0x0002) {  // retain_vq
+          s4o.print(",1");
+        } else if (current_varqualifier & 0x0004) {  // non_retain_vq
+          s4o.print(",0");
+        } else {
+          s4o.print(",retain");
+        }
+        
+        s4o.print(");\n");
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces);
+        s4o.print("}");
+      }
+    }
+
+    void init_elementary_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
+      // Generate loop-based initialization for elementary arrays with wrapper elements
+      // For an array like ARRAY [1..3] OF INT := [10, 20, 30], generate:
+      // {
+      //   __SET_VAR(, data__->INT_ARR.value.table[0], , 10);
+      //   __SET_VAR(, data__->INT_ARR.value.table[1], , 20);
+      //   __SET_VAR(, data__->INT_ARR.value.table[2], , 30);
+      // }
+      
+      list_c *list = dynamic_cast<list_c *>(var1_list);
+      if (list == NULL) ERROR;
+      
+      // Flatten initialization values into a vector
+      std::vector<symbol_c*> values;
+      
+      // Use array_default_initialization which was set by init_array_size() via the array_spec_init_c visitor
+      // This contains the actual initialization values from the IEC code
+      symbol_c *init_values = array_default_initialization;
+      
+      // init_values should be the array_initial_elements_list_c
+      array_initial_elements_list_c *init_list = dynamic_cast<array_initial_elements_list_c *>(init_values);
+      
+      if (init_list != NULL) {
+        for (int i = 0; i < init_list->n && values.size() < array_size; i++) {
+          symbol_c *list_elem = init_list->get_element(i);
+          array_initial_elements_c *init_elem = dynamic_cast<array_initial_elements_c *>(list_elem);
+          
+          if (init_elem != NULL) {
+            // This is an array_initial_elements_c node (e.g., "2(10)" with explicit repetition)
+            // Extract repetition count from integer
+            unsigned long long int repetition_count = 1;
+            if (init_elem->integer != NULL) {
+              if (VALID_CVALUE(int64, init_elem->integer) && (GET_CVALUE(int64, init_elem->integer) >= 0))
+                repetition_count = GET_CVALUE(int64, init_elem->integer);
+              else if (VALID_CVALUE(uint64, init_elem->integer))
+                repetition_count = GET_CVALUE(uint64, init_elem->integer);
+              // If integer doesn't have a CVALUE, it means repetition count is 1 (implicit)
+            }
+            
+            // Get the value expression (or use default if NULL)
+            symbol_c *expr = (init_elem->array_initial_element != NULL) ? 
+                             init_elem->array_initial_element : array_default_value;
+            
+            // Add this expression repetition_count times (up to array_size)
+            for (unsigned long long int j = 0; j < repetition_count && values.size() < array_size; j++) {
+              values.push_back(expr);
+            }
+          } else {
+            // This is a direct value expression (e.g., "10" in "[10, 20, 30]")
+            // For simple array initialization, the parser creates value expressions directly
+            // without wrapping them in array_initial_elements_c
+            values.push_back(list_elem);
+          }
+        }
+      }else {
+        // If array_initialization is not array_initial_elements_list_c, it might be a single value
+        // or some other form. For now, just use default values.
+        // This handles cases where the initialization is not in the expected format.
+      }
+      
+      // Generate initialization code for each variable in var1_list
+      for (int var_idx = 0; var_idx < list->n; var_idx++) {
+        s4o.print("\n");
+        s4o.print(s4o.indent_spaces);
+        s4o.print("{\n");
+        s4o.indent_right();
+        
+        // Emit __SET_VAR assignments for explicit values
+        for (size_t i = 0; i < values.size(); i++) {
+          s4o.print(s4o.indent_spaces);
+          s4o.print(SET_VAR);
+          s4o.print("(,");
+          print_variable_prefix();
+          current_mode = none_am;
+          list->get_element(var_idx)->accept(*this);
+          s4o.print(".value.table[");
+          char idx_str[32];
+          snprintf(idx_str, sizeof(idx_str), "%zu", i);
+          s4o.print(idx_str);
+          s4o.print("],,");
+          // Print the value expression using initializationvalue_am mode
+          current_mode = initializationvalue_am;
+          values[i]->accept(*this);
+          current_mode = none_am;
+          s4o.print(");\n");
+        }
+        
+        // Fill remaining elements with default value
+        for (unsigned long long int i = values.size(); i < array_size; i++) {
+          s4o.print(s4o.indent_spaces);
+          s4o.print(SET_VAR);
+          s4o.print("(,");
+          print_variable_prefix();
+          current_mode = none_am;
+          list->get_element(var_idx)->accept(*this);
+          s4o.print(".value.table[");
+          char idx_str[32];
+          snprintf(idx_str, sizeof(idx_str), "%llu", i);
+          s4o.print(idx_str);
+          s4o.print("],,");
+          // Print the default value expression using initializationvalue_am mode
+          current_mode = initializationvalue_am;
+          array_default_value->accept(*this);
+          current_mode = none_am;
+          s4o.print(");\n");
+        }
+        
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces);
+        s4o.print("}");
+      }
+    }
+
     void init_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
       int i;
       
+      // Call init_array_size first (it resets array_default_initialization to NULL)
       init_array_size(array_specification);
       
-      s4o.print("\n");
-      s4o.print(s4o.indent_spaces + "{\n");
-      s4o.indent_right();
-      s4o.print(s4o.indent_spaces);
-      s4o.print("static const ");
+      // Then extract and set the initialization values AFTER init_array_size
+      // array_initialization might be array_spec_init_c, so extract the array_initialization field
+      if (array_initialization != NULL) {
+        array_spec_init_c *array_spec_init = dynamic_cast<array_spec_init_c *>(array_initialization);
+        if (array_spec_init != NULL) {
+          set_array_default_initialisation(array_spec_init->array_initialization);
+        } else {
+          set_array_default_initialisation(array_initialization);
+        }
+      }
+      
+      // Check if the array base type is a function block or elementary type
+      bool is_fb_array = false;
+      bool is_elementary_array = false;
+      if (array_base_type != NULL) {
+        is_fb_array = get_datatype_info_c::is_function_block(array_base_type);
+        is_elementary_array = get_datatype_info_c::is_ANY_ELEMENTARY(array_base_type);
+      }
+      
+      if (is_fb_array) {
+        // Generate loop-based initialization for FB arrays
+        init_fb_array(var1_list, array_specification, array_initialization);
+      } else if (is_elementary_array) {
+        // For elementary arrays with wrapper elements, we can't use static const initialization
+        // because the wrapper elements need their .value fields initialized.
+        // If there's explicit initialization, use loop-based initialization with __SET_VAR.
+        // If there's no explicit initialization, skip generating initialization code
+        // since the default initialization will be handled by the C compiler (zero-initialization).
+        if (array_initialization != NULL) {
+          init_elementary_array(var1_list, array_specification, array_initialization);
+        }
+      } else {
+        // Generate static const initialization for non-elementary, non-FB arrays (e.g., structures)
+        s4o.print("\n");
+        s4o.print(s4o.indent_spaces + "{\n");
+        s4o.indent_right();
+        s4o.print(s4o.indent_spaces);
+        s4o.print("static const ");
 
-      current_mode = typedecl_am;
-      array_specification->accept(*this);
-      s4o.print(" temp = ");
+        current_mode = typedecl_am;
+        array_specification->accept(*this);
+        s4o.print(" temp = ");
 
-      init_array_values(array_initialization);
+        init_array_values(array_initialization);
 
-      s4o.print(";\n");
-      var1_list->accept(*this);
-      s4o.indent_left();
-      s4o.print(s4o.indent_spaces + "}");
+        s4o.print(";\n");
+        var1_list->accept(*this);
+        s4o.indent_left();
+        s4o.print(s4o.indent_spaces + "}");
+      }
     }
     
     void init_array_values(symbol_c *array_initialization) {
@@ -149,7 +354,13 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         case arraysize_am:
           /* look up the type declaration... */
           iter = type_symtable.find(type_name);
-          if (iter == type_symtable.end())   ERROR;  // Type declaration not found!!
+          if (iter == type_symtable.end()) {
+            // Type not found in type_symtable. This could be a standard library
+            // function block (like TON, CTU, etc.) which are stored in 
+            // library_element_symtable (not accessible from here).
+            // Return NULL and let the caller handle it appropriately.
+            return NULL;
+          }
           iter->second->accept(*this);  // iter->second is a type_decl
           break;
         default:
@@ -198,8 +409,14 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         case arraysize_am:
           symbol->array_subrange_list->accept(*this);
           array_base_type = symbol->non_generic_type_name;
-          array_default_value = type_initial_value_c::get(symbol->non_generic_type_name);
-          if (array_default_value == NULL) ERROR;
+          // For function block arrays, we don't need a default value
+          // because they use loop-based initialization with FB_TYPE_init__()
+          if (get_datatype_info_c::is_function_block(array_base_type)) {
+            array_default_value = NULL;  // FBs don't have simple default values
+          } else {
+            array_default_value = type_initial_value_c::get(symbol->non_generic_type_name);
+            if (array_default_value == NULL) ERROR;
+          }
           break;
         case typedecl_am: {
             int implicit_id_count = symbol->anotations_map.count("generate_c_annotaton__implicit_type_id");
@@ -1493,6 +1710,7 @@ void *visit(array_var_init_decl_c *symbol) {
   if (wanted_varformat == constructorinit_vf) {
     generate_c_array_initialization_c *array_initialization = new generate_c_array_initialization_c(&s4o);
     array_initialization->set_variable_prefix(get_variable_prefix());
+    array_initialization->set_varqualifier(this->current_varqualifier);
     array_initialization->init_array(symbol->var1_list, this->current_var_type_symbol, this->current_var_init_symbol);
     delete array_initialization;
   }
@@ -1635,6 +1853,7 @@ void *visit(array_var_declaration_c *symbol) {
   if (wanted_varformat == constructorinit_vf) {
     generate_c_array_initialization_c *array_initialization = new generate_c_array_initialization_c(&s4o);
     array_initialization->set_variable_prefix(get_variable_prefix());
+    array_initialization->set_varqualifier(this->current_varqualifier);
     array_initialization->init_array(symbol->var1_list, this->current_var_type_symbol, this->current_var_init_symbol);
     delete array_initialization;
   }

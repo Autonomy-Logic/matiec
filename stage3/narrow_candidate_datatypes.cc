@@ -758,6 +758,12 @@ void *narrow_candidate_datatypes_c::visit(ref_type_decl_c *symbol) {return narro
 /*********************/
 // SYM_REF1(symbolic_variable_c, var_name)
 void *narrow_candidate_datatypes_c::visit(symbolic_variable_c *symbol) {
+	// If datatype is NULL but we have exactly one candidate, set it to that candidate
+	// This matches the behavior of other visitors (see lines 443, 455) for literal constants
+	if (symbol->datatype == NULL && symbol->candidate_datatypes.size() == 1) {
+		symbol->datatype = symbol->candidate_datatypes[0];
+	}
+	
 	symbol->var_name->datatype = symbol->datatype;
 	return NULL;
 }
@@ -1694,6 +1700,11 @@ void *narrow_candidate_datatypes_c::visit(assignment_statement_c *symbol) {
 /*****************************************/
 
 void *narrow_candidate_datatypes_c::visit(fb_invocation_c *symbol) {
+	/* Visit fb_name to set datatypes on any sub-expressions (e.g., array subscripts) */
+	if (symbol->fb_name != NULL) {
+		symbol->fb_name->accept(*this);
+	}
+	
 	/* Note: We do not use the symbol->called_fb_declaration value (set in fill_candidate_datatypes_c)
 	 *       because we try to identify any other datatype errors in the expressions used in the 
 	 *       parameters to the FB call (e.g.  fb_var(var1 * 56 + func(var * 43)) )
