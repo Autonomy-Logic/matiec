@@ -351,6 +351,20 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
 
 
     void *print_getter(symbol_c *symbol) {
+      // For bare FB instances, we cannot use __GET_VAR macro since FBs are raw C structs
+      // without wrapper types. Instead, just print the variable directly with proper prefix.
+      if (get_datatype_info_c::is_function_block(symbol->datatype)) {
+        // This is a bare FB instance - print with variable prefix for direct access
+        print_variable_prefix();
+        variablegeneration_t old_wanted_variablegeneration = wanted_variablegeneration;
+        wanted_variablegeneration = complextype_base_vg;
+        symbol->accept(*this);
+        wanted_variablegeneration = complextype_suffix_vg;
+        symbol->accept(*this);
+        wanted_variablegeneration = old_wanted_variablegeneration;
+        return NULL;
+      }
+
       unsigned int vartype = search_var_instance_decl->get_vartype(symbol);
       if (wanted_variablegeneration == fparam_output_vg) {
         if (vartype == search_var_instance_decl_c::external_vt) {
@@ -397,6 +411,54 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
             symbol_c* fb_symbol = NULL,
             symbol_c* fb_value = NULL,
             bool negative = false) {
+
+      // Special case: Function block type as VAR_INPUT/VAR_OUTPUT parameter
+      // Function blocks are raw C structs without wrapper types (no .flags/.value members),
+      // so we cannot use __SET_VAR macro. Instead, use direct struct assignment.
+      // 
+      // SEMANTIC DIFFERENCE FROM STRUCT TYPES:
+      // - For user-defined STRUCTs, __SET_VAR copies only the .value payload and respects forcing
+      // - For FBs, direct assignment copies the ENTIRE FB instance including:
+      //   * All internal variable values AND their .flags (force/retain/debug bits)
+      //   * Any internal state (timers, counters, etc.)
+      //   * Pointer members (VAR_IN_OUT, VAR_EXTERNAL, located vars) - these are copied as-is
+      // This means forced internal variables may get overwritten, and internal state is cloned.
+      if (fb_symbol != NULL && type != NULL && get_datatype_info_c::is_function_block(type)) {
+        // FB as input/output parameter of another FB
+        // Generate: data__->FB_INSTANCE.FB_PARAM = <value>;
+        unsigned int vartype = search_var_instance_decl->get_vartype(fb_symbol);
+        
+        print_variable_prefix();
+        if (vartype == search_var_instance_decl_c::external_vt) {
+          // External FB: fb_symbol is a pointer
+          fb_symbol->accept(*this);
+          s4o.print("->");
+        } else {
+          // Local FB: direct member access
+          fb_symbol->accept(*this);
+          s4o.print(".");
+        }
+        symbol->accept(*this);
+        s4o.print(" = ");
+        
+        // Print the value (source FB instance)
+        // Need to handle the case where fb_value is set (reading from another FB's output)
+        if (fb_value != NULL) {
+          print_variable_prefix();
+          fb_value->accept(*this);
+          s4o.print(".");
+          value->accept(*this);
+        } else {
+          // Direct FB variable assignment
+          if (negative) {
+            // This shouldn't happen for FB types, but handle it just in case
+            s4o.print("/* WARNING: negation not supported for FB types */ ");
+          }
+          print_variable_prefix();
+          value->accept(*this);
+        }
+        return NULL;
+      }
 
       bool type_is_complex = false;
       if (fb_symbol == NULL) {
