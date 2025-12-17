@@ -253,6 +253,16 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
 
 
   private:
+    // Helper method to accept a symbol without variable prefix
+    // This is used when we need to print variable names directly without
+    // going through the getter/setter macros (e.g., for FB type parameters)
+    void accept_without_prefix(symbol_c *symbol) {
+      const char *saved_prefix = this->get_variable_prefix();
+      this->set_variable_prefix(NULL);
+      symbol->accept(*this);
+      this->set_variable_prefix(saved_prefix);
+    }
+
     /* a small helper function */
     symbol_c *default_literal_type(symbol_c *symbol) {
       if (get_datatype_info_c::is_ANY_INT_literal(symbol)) {
@@ -431,11 +441,11 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
         print_variable_prefix();
         if (vartype == search_var_instance_decl_c::external_vt) {
           // External FB: fb_symbol is a pointer
-          fb_symbol->accept(*this);
+          accept_without_prefix(fb_symbol);
           s4o.print("->");
         } else {
           // Local FB: direct member access
-          fb_symbol->accept(*this);
+          accept_without_prefix(fb_symbol);
           s4o.print(".");
         }
         symbol->accept(*this);
@@ -445,7 +455,7 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
         // Need to handle the case where fb_value is set (reading from another FB's output)
         if (fb_value != NULL) {
           print_variable_prefix();
-          fb_value->accept(*this);
+          accept_without_prefix(fb_value);
           s4o.print(".");
           value->accept(*this);
         } else {
@@ -455,7 +465,7 @@ class generate_c_il_c: public generate_c_base_and_typeid_c, il_default_variable_
             s4o.print("/* WARNING: negation not supported for FB types */ ");
           }
           print_variable_prefix();
-          value->accept(*this);
+          accept_without_prefix(value);
         }
         return NULL;
       }
