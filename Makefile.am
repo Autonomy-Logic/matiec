@@ -21,7 +21,7 @@ iec2iec_LDADD = stage1_2/libstage1_2.a \
 	absyntax/libabsyntax.a \
 	absyntax_utils/libabsyntax_utils.a 
 
-iec2c_SOURCES = main.cc
+iec2c_SOURCES = main.cc util/diagnostics.cc
 
-iec2iec_SOURCES = main.cc
+iec2iec_SOURCES = main.cc util/diagnostics.cc
 

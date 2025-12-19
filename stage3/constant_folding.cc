@@ -138,6 +138,7 @@
  */
 
 #include "constant_folding.hh"
+#include "../util/diagnostics.hh"
 #include <stdlib.h> /* required for malloc() */
 
 #include <string.h>  /* required for strlen() */
@@ -161,6 +162,9 @@
                                                  LAST_(symbol1,symbol2) ->last_line,  LAST_(symbol1,symbol2) ->last_column);\
     fprintf(stderr, __VA_ARGS__);                                                                                           \
     fprintf(stderr, "\n");                                                                                                  \
+    print_source_context(FIRST_(symbol1,symbol2)->first_file,                                                               \
+                         FIRST_(symbol1,symbol2)->first_line, FIRST_(symbol1,symbol2)->first_column,                        \
+                         LAST_(symbol1,symbol2)->last_line, LAST_(symbol1,symbol2)->last_column);                           \
     error_count++;                                                                                                     \
   }                                                                                                                         \
 }
@@ -172,6 +176,9 @@
                                                  LAST_(symbol1,symbol2) ->last_line,  LAST_(symbol1,symbol2) ->last_column);\
     fprintf(stderr, __VA_ARGS__);                                                                                           \
     fprintf(stderr, "\n");                                                                                                  \
+    print_source_context(FIRST_(symbol1,symbol2)->first_file,                                                               \
+                         FIRST_(symbol1,symbol2)->first_line, FIRST_(symbol1,symbol2)->first_column,                        \
+                         LAST_(symbol1,symbol2)->last_line, LAST_(symbol1,symbol2)->last_column);                           \
     warning_found = true;                                                                                                   \
 }
 

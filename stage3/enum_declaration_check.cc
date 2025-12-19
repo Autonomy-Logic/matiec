@@ -42,10 +42,11 @@
 
 
 #include "enum_declaration_check.hh"
+#include "../util/diagnostics.hh"
 
 
 
-#define FIRST_(symbol1, symbol2) (((symbol1)->first_order < (symbol2)->first_order)   ? (symbol1) : (symbol2))
+#define FIRST_(symbol1, symbol2)(((symbol1)->first_order < (symbol2)->first_order)   ? (symbol1) : (symbol2))
 #define  LAST_(symbol1, symbol2) (((symbol1)->last_order  > (symbol2)->last_order)    ? (symbol1) : (symbol2))
 
 #define STAGE3_ERROR(error_level, symbol1, symbol2, ...) {                                                                  \
@@ -55,6 +56,9 @@
                                                  LAST_(symbol1,symbol2) ->last_line,  LAST_(symbol1,symbol2) ->last_column);\
     fprintf(stderr, __VA_ARGS__);                                                                                           \
     fprintf(stderr, "\n");                                                                                                  \
+    print_source_context(FIRST_(symbol1,symbol2)->first_file,                                                               \
+                         FIRST_(symbol1,symbol2)->first_line, FIRST_(symbol1,symbol2)->first_column,                        \
+                         LAST_(symbol1,symbol2)->last_line, LAST_(symbol1,symbol2)->last_column);                           \
     error_count++;                                                                                                     \
   }                                                                                                                         \
 }
@@ -66,6 +70,9 @@
                                                  LAST_(symbol1,symbol2) ->last_line,  LAST_(symbol1,symbol2) ->last_column);\
     fprintf(stderr, __VA_ARGS__);                                                                                           \
     fprintf(stderr, "\n");                                                                                                  \
+    print_source_context(FIRST_(symbol1,symbol2)->first_file,                                                               \
+                         FIRST_(symbol1,symbol2)->first_line, FIRST_(symbol1,symbol2)->first_column,                        \
+                         LAST_(symbol1,symbol2)->last_line, LAST_(symbol1,symbol2)->last_column);                           \
     warning_found = true;                                                                                                   \
 }
 

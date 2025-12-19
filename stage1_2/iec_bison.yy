@@ -162,6 +162,7 @@ void yyerror (const char *error_msg);
 
 
 #include "../main.hh" // required for ERROR() and ERROR_MSG() macros.
+#include "../util/diagnostics.hh"
 
 
 
@@ -8588,6 +8589,7 @@ void print_err_msg(int first_line,
   } else {
       fprintf(stderr, "%s:%d: error: %s\n", first_filename, first_line, additional_error_msg);
   }
+  print_source_context(first_filename, first_line, first_column, last_line, last_column);
   //fprintf(stderr, "error %d: %s\n", yynerrs /* a global variable */, additional_error_msg);
   print_include_stack();
 }
