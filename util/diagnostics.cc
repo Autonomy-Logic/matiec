@@ -28,6 +28,7 @@
 #include "diagnostics.hh"
 #include <stdio.h>
 #include <string.h>
+#include <climits>
 #include <fstream>
 #include <sstream>
 
@@ -117,11 +118,16 @@ static std::string get_source_line(int line_number) {
         return "";
     }
     
-    if (line_number < 1 || line_number > (int)source_lines.size()) {
+    /* Use size_t for safe comparison without narrowing cast */
+    if (line_number <= 0) {
+        return "";
+    }
+    size_t index = static_cast<size_t>(line_number - 1);
+    if (index >= source_lines.size()) {
         return "";
     }
     
-    return source_lines[line_number - 1];
+    return source_lines[index];
 }
 
 /*
@@ -214,7 +220,9 @@ void print_source_context(const char *filename,
         end_col = last_column;
     } else {
         /* Error spans multiple lines - underline to end of first line */
-        end_col = (int)line.length();
+        /* Use safe conversion to avoid potential overflow on extremely long lines */
+        size_t line_len = line.length();
+        end_col = (line_len > INT_MAX) ? INT_MAX : static_cast<int>(line_len);
     }
     
     /* Calculate how many tildes to print */
