@@ -82,6 +82,7 @@
 #include "stage3/stage3.hh"
 #include "stage4/stage4.hh"
 #include "main.hh"
+#include "util/diagnostics.hh"
 
 
 #ifndef HGVERSION
@@ -239,6 +240,9 @@ int main(int argc, char **argv) {
   /***************************/
   /*   Run the compiler...   */
   /***************************/
+  /* Initialize diagnostics module with main source file for GCC-style error reporting */
+  diagnostics_init(argv[optind]);
+
   /* 1st Pass */
   if (stage1_2(argv[optind], &tree_root) < 0)
     return EXIT_FAILURE;
