@@ -343,6 +343,44 @@ void *print_setter(symbol_c* symbol,
     return NULL;
   }
   
+  // Special case: Copy-back of FB type from another FB's VAR_OUTPUT or VAR_IN_OUT parameter
+  // This handles the post-call copy-back: dest_fb = source_fb.param
+  // where param is a VAR_OUTPUT or VAR_IN_OUT of FB type.
+  // 
+  // This implements copy-in/copy-out semantics (same as MatIEC does for non-FB VAR_IN_OUT).
+  // The FB is copied by value, not by reference.
+  if (fb_symbol == NULL && fb_value != NULL && type != NULL && get_datatype_info_c::is_function_block(type)) {
+    // Generate: dest = fb_instance.param;
+    unsigned int dest_vartype = search_var_instance_decl->get_vartype(symbol);
+    unsigned int src_vartype = search_var_instance_decl->get_vartype(fb_value);
+    
+    // Print destination (LHS)
+    print_variable_prefix();
+    if (dest_vartype == search_var_instance_decl_c::external_vt) {
+      // External FB destination: need to dereference pointer
+      s4o.print("*");
+      accept_without_prefix(symbol);
+    } else {
+      accept_without_prefix(symbol);
+    }
+    
+    s4o.print(" = ");
+    
+    // Print source (RHS): fb_instance.param
+    print_variable_prefix();
+    if (src_vartype == search_var_instance_decl_c::external_vt) {
+      // External FB source: use -> for member access
+      accept_without_prefix(fb_value);
+      s4o.print("->");
+    } else {
+      accept_without_prefix(fb_value);
+      s4o.print(".");
+    }
+    value->accept(*this);  // parameter name
+    
+    return NULL;
+  }
+  
   // Special case: FB array element field access (e.g., TON_ARR[1].IN := value)
   // For forced variables to work correctly, we need to make the field be the "name" parameter
   // so the macro checks the field's .flags, not the array's .flags.
