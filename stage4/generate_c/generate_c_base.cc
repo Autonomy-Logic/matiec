@@ -317,10 +317,14 @@ class generate_c_base_c: public iterator_visitor_c {
         // from printing the prefix again (which would cause duplicate data__-> prefixes).
         // This is needed because fb_name may be an FB instance, and visiting it with
         // expression_vg would trigger print_getter's FB-special-case which prints the prefix.
-        const char *saved_prefix = this->get_variable_prefix();
-        this->set_variable_prefix(NULL);
+        // Use RAII to ensure prefix is restored even if an exception occurs.
+        struct prefix_guard_t {
+          generate_c_base_c &self;
+          const char *saved;
+          prefix_guard_t(generate_c_base_c &s) : self(s), saved(s.get_variable_prefix()) { self.set_variable_prefix(NULL); }
+          ~prefix_guard_t() { self.set_variable_prefix(saved); }
+        } prefix_guard(*this);
         fb_name->accept(*this);
-        this->set_variable_prefix(saved_prefix);
         s4o.print(".");
         value->accept(*this);
         s4o.print(")");
