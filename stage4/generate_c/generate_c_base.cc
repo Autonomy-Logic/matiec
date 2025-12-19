@@ -313,7 +313,14 @@ class generate_c_base_c: public iterator_visitor_c {
         s4o.print(GET_VAR);
         s4o.print("(");
         print_variable_prefix();
+        // Temporarily clear the variable prefix to prevent nested print_getter calls
+        // from printing the prefix again (which would cause duplicate data__-> prefixes).
+        // This is needed because fb_name may be an FB instance, and visiting it with
+        // expression_vg would trigger print_getter's FB-special-case which prints the prefix.
+        const char *saved_prefix = this->get_variable_prefix();
+        this->set_variable_prefix(NULL);
         fb_name->accept(*this);
+        this->set_variable_prefix(saved_prefix);
         s4o.print(".");
         value->accept(*this);
         s4o.print(")");
