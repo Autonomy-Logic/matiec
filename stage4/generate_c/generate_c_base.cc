@@ -313,6 +313,17 @@ class generate_c_base_c: public iterator_visitor_c {
         s4o.print(GET_VAR);
         s4o.print("(");
         print_variable_prefix();
+        // Temporarily clear the variable prefix to prevent nested print_getter calls
+        // from printing the prefix again (which would cause duplicate data__-> prefixes).
+        // This is needed because fb_name may be an FB instance, and visiting it with
+        // expression_vg would trigger print_getter's FB-special-case which prints the prefix.
+        // Use RAII to ensure prefix is restored even if an exception occurs.
+        struct prefix_guard_t {
+          generate_c_base_c &self;
+          const char *saved;
+          prefix_guard_t(generate_c_base_c &s) : self(s), saved(s.get_variable_prefix()) { self.set_variable_prefix(NULL); }
+          ~prefix_guard_t() { self.set_variable_prefix(saved); }
+        } prefix_guard(*this);
         fb_name->accept(*this);
         s4o.print(".");
         value->accept(*this);
