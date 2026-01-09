@@ -473,36 +473,38 @@ void *print_setter(symbol_c* symbol,
     // - my_fb_array[1] := other_fb;
     // - my_fb := other_fb_array[2];
     // - my_fb_array[1] := other_fb_array[2];
-    if (type != NULL && get_datatype_info_c::is_function_block(type)) {
-      // Check that the destination (symbol) is a function block type
-      // This catches bare FBs and FB array elements
-      symbol_c *symbol_datatype = symbol->datatype;
-      if (symbol_datatype != NULL && get_datatype_info_c::is_function_block(symbol_datatype)) {
-        // Generate direct struct assignment: dest_fb = src_fb;
-        unsigned int dest_vartype = search_var_instance_decl->get_vartype(symbol);
+    //
+    // Note: 'type' describes the RHS/value datatype, while 'symbol->datatype' describes
+    // the LHS/destination datatype. Both must be function blocks to use direct struct assignment.
+    symbol_c *symbol_datatype = symbol->datatype;
+    if (type != NULL &&
+        symbol_datatype != NULL &&
+        get_datatype_info_c::is_function_block(type) &&
+        get_datatype_info_c::is_function_block(symbol_datatype)) {
+      // Generate direct struct assignment: dest_fb = src_fb;
+      unsigned int dest_vartype = search_var_instance_decl->get_vartype(symbol);
 
-        // Print destination (LHS)
-        print_variable_prefix();
-        if (dest_vartype == search_var_instance_decl_c::external_vt) {
-          // External FB destination: dereference pointer
-          s4o.print("*");
-        }
-        accept_without_prefix(symbol);
-
-        s4o.print(" = ");
-
-        // Print source (RHS)
-        // value could be a bare FB variable or an FB array element
-        unsigned int src_vartype = search_var_instance_decl->get_vartype(value);
-        print_variable_prefix();
-        if (src_vartype == search_var_instance_decl_c::external_vt) {
-          // External FB source: dereference pointer
-          s4o.print("*");
-        }
-        accept_without_prefix(value);
-
-        return NULL;
+      // Print destination (LHS)
+      print_variable_prefix();
+      if (dest_vartype == search_var_instance_decl_c::external_vt) {
+        // External FB destination: dereference pointer
+        s4o.print("*");
       }
+      accept_without_prefix(symbol);
+
+      s4o.print(" = ");
+
+      // Print source (RHS)
+      // value could be a bare FB variable or an FB array element
+      unsigned int src_vartype = search_var_instance_decl->get_vartype(value);
+      print_variable_prefix();
+      if (src_vartype == search_var_instance_decl_c::external_vt) {
+        // External FB source: dereference pointer
+        s4o.print("*");
+      }
+      accept_without_prefix(value);
+
+      return NULL;
     }
   }
 
