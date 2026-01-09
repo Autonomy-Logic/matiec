@@ -1167,21 +1167,7 @@ void *print_datatypes_error_c::visit(function_invocation_c *symbol) {
 void *print_datatypes_error_c::visit(assignment_statement_c *symbol) {
 	symbol->l_exp->accept(*this);
 	symbol->r_exp->accept(*this);
-	
-	/* Check for direct function block assignment (fb1 := fb2), which is not supported.
-	 * Function blocks are raw C structs without wrapper types, so direct assignment
-	 * would bypass the runtime's variable forcing mechanism and copy internal state
-	 * in ways that may not be intended. This is also not commonly supported across
-	 * IEC 61131-3 implementations.
-	 */
-	if (get_datatype_info_c::is_type_valid(symbol->l_exp->datatype) &&
-	    get_datatype_info_c::is_type_valid(symbol->r_exp->datatype) &&
-	    get_datatype_info_c::is_function_block(symbol->l_exp->datatype) &&
-	    get_datatype_info_c::is_function_block(symbol->r_exp->datatype)) {
-		STAGE3_ERROR(0, symbol, symbol, "Direct assignment between function block instances is not supported.");
-		return NULL;
-	}
-	
+
 	if ((!get_datatype_info_c::is_type_valid(symbol->l_exp->datatype)) &&
 	    (!get_datatype_info_c::is_type_valid(symbol->r_exp->datatype)) &&
 	    (symbol->l_exp->candidate_datatypes.size() > 0)	&&
