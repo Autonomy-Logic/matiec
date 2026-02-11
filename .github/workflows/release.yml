@@ -1,0 +1,311 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to inject (e.g. 1.0.0). Leave empty for 0.1-dev.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Compute the version string once, share it across jobs
+  # ---------------------------------------------------------------------------
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="0.1-dev"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "### Version: \`${VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Linux x64
+  # ---------------------------------------------------------------------------
+  build-linux-x64:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex autoconf automake
+
+      - name: Inject version into configure.ac
+        run: |
+          sed -i "s|AC_INIT(\[matiec\], \[0.1\],|AC_INIT([matiec], [${VERSION}],|" configure.ac
+
+      - name: Build
+        run: |
+          autoreconf -i
+          ./configure
+          make -j"$(nproc)" HGVERSION="$(git rev-parse --short HEAD)"
+
+      - name: Verify binary
+        run: |
+          file iec2c
+          ./iec2c --help || true
+
+      - name: Package
+        run: |
+          mkdir -p staging/matiec/lib/C
+          cp iec2c iec2iec staging/matiec/
+          cp lib/*.txt staging/matiec/lib/
+          cp lib/C/*.h staging/matiec/lib/C/
+          find staging -name '.DS_Store' -delete
+          tar -czf matiec-linux-x64.tar.gz -C staging matiec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matiec-linux-x64
+          path: matiec-linux-x64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Linux ARM64
+  # ---------------------------------------------------------------------------
+  build-linux-arm64:
+    needs: prepare
+    runs-on: ubuntu-24.04-arm
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential bison flex autoconf automake
+
+      - name: Inject version into configure.ac
+        run: |
+          sed -i "s|AC_INIT(\[matiec\], \[0.1\],|AC_INIT([matiec], [${VERSION}],|" configure.ac
+
+      - name: Build
+        run: |
+          autoreconf -i
+          ./configure
+          make -j"$(nproc)" HGVERSION="$(git rev-parse --short HEAD)"
+
+      - name: Verify binary
+        run: |
+          file iec2c
+          ./iec2c --help || true
+
+      - name: Package
+        run: |
+          mkdir -p staging/matiec/lib/C
+          cp iec2c iec2iec staging/matiec/
+          cp lib/*.txt staging/matiec/lib/
+          cp lib/C/*.h staging/matiec/lib/C/
+          find staging -name '.DS_Store' -delete
+          tar -czf matiec-linux-arm64.tar.gz -C staging matiec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matiec-linux-arm64
+          path: matiec-linux-arm64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # macOS x64 (Intel)
+  # ---------------------------------------------------------------------------
+  build-darwin-x64:
+    needs: prepare
+    runs-on: macos-13
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install bison flex autoconf automake
+
+      - name: Inject version into configure.ac
+        run: |
+          sed -i '' "s|AC_INIT(\[matiec\], \[0.1\],|AC_INIT([matiec], [${VERSION}],|" configure.ac
+
+      - name: Build
+        run: |
+          export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+          autoreconf -i
+          ./configure
+          make -j"$(sysctl -n hw.ncpu)" HGVERSION="$(git rev-parse --short HEAD)"
+
+      - name: Verify binary
+        run: |
+          file iec2c
+          ./iec2c --help || true
+
+      - name: Package
+        run: |
+          mkdir -p staging/matiec/lib/C
+          cp iec2c iec2iec staging/matiec/
+          cp lib/*.txt staging/matiec/lib/
+          cp lib/C/*.h staging/matiec/lib/C/
+          find staging -name '.DS_Store' -delete
+          tar -czf matiec-darwin-x64.tar.gz -C staging matiec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matiec-darwin-x64
+          path: matiec-darwin-x64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # macOS ARM64 (Apple Silicon)
+  # ---------------------------------------------------------------------------
+  build-darwin-arm64:
+    needs: prepare
+    runs-on: macos-15
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: brew install bison flex autoconf automake
+
+      - name: Inject version into configure.ac
+        run: |
+          sed -i '' "s|AC_INIT(\[matiec\], \[0.1\],|AC_INIT([matiec], [${VERSION}],|" configure.ac
+
+      - name: Build
+        run: |
+          export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+          autoreconf -i
+          ./configure
+          make -j"$(sysctl -n hw.ncpu)" HGVERSION="$(git rev-parse --short HEAD)"
+
+      - name: Verify binary
+        run: |
+          file iec2c
+          ./iec2c --help || true
+
+      - name: Package
+        run: |
+          mkdir -p staging/matiec/lib/C
+          cp iec2c iec2iec staging/matiec/
+          cp lib/*.txt staging/matiec/lib/
+          cp lib/C/*.h staging/matiec/lib/C/
+          find staging -name '.DS_Store' -delete
+          tar -czf matiec-darwin-arm64.tar.gz -C staging matiec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matiec-darwin-arm64
+          path: matiec-darwin-arm64.tar.gz
+
+  # ---------------------------------------------------------------------------
+  # Windows x64 (cross-compiled from Linux with MinGW)
+  # ---------------------------------------------------------------------------
+  build-windows-x64:
+    needs: prepare
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex autoconf automake \
+            gcc-mingw-w64-x86-64 g++-mingw-w64-x86-64
+
+      - name: Inject version into configure.ac
+        run: |
+          sed -i "s|AC_INIT(\[matiec\], \[0.1\],|AC_INIT([matiec], [${VERSION}],|" configure.ac
+
+      - name: Build
+        run: |
+          autoreconf -i
+          ./configure --host=x86_64-w64-mingw32 LDFLAGS="-static"
+          make -j"$(nproc)" CXX=x86_64-w64-mingw32-g++ HGVERSION="$(git rev-parse --short HEAD)"
+
+      - name: Verify binary
+        run: file iec2c.exe
+
+      - name: Package
+        run: |
+          mkdir -p staging/matiec/lib/C
+          cp iec2c.exe iec2iec.exe staging/matiec/
+          cp lib/*.txt staging/matiec/lib/
+          cp lib/C/*.h staging/matiec/lib/C/
+          find staging -name '.DS_Store' -delete
+          cd staging && zip -r ../matiec-win32-x64.zip matiec
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: matiec-win32-x64
+          path: matiec-win32-x64.zip
+
+  # ---------------------------------------------------------------------------
+  # Create GitHub Release (only on tag push)
+  # ---------------------------------------------------------------------------
+  create-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - prepare
+      - build-linux-x64
+      - build-linux-arm64
+      - build-darwin-x64
+      - build-darwin-arm64
+      - build-windows-x64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp artifacts/matiec-linux-x64/matiec-linux-x64.tar.gz release/
+          cp artifacts/matiec-linux-arm64/matiec-linux-arm64.tar.gz release/
+          cp artifacts/matiec-darwin-x64/matiec-darwin-x64.tar.gz release/
+          cp artifacts/matiec-darwin-arm64/matiec-darwin-arm64.tar.gz release/
+          cp artifacts/matiec-win32-x64/matiec-win32-x64.zip release/
+          # Windows ARM64 runs x64 binaries via emulation
+          cp release/matiec-win32-x64.zip release/matiec-win32-arm64.zip
+          ls -lh release/
+
+      - name: Detect prerelease
+        id: prerelease
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" =~ (alpha|beta|rc) ]]; then
+            echo "flag=--prerelease" >> "$GITHUB_OUTPUT"
+          else
+            echo "flag=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --title "${{ github.ref_name }}" \
+            --generate-notes \
+            ${{ steps.prerelease.outputs.flag }} \
+            release/*
