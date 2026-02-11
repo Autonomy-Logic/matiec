@@ -127,11 +127,11 @@ jobs:
           path: matiec-linux-arm64.tar.gz
 
   # ---------------------------------------------------------------------------
-  # macOS x64 (Intel)
+  # macOS x64 (Intel) — cross-compiled on ARM runner via -arch x86_64
   # ---------------------------------------------------------------------------
   build-darwin-x64:
     needs: prepare
-    runs-on: macos-13
+    runs-on: macos-15
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
@@ -144,17 +144,20 @@ jobs:
         run: |
           sed -i '' "s|AC_INIT(\[matiec\], \[0.1\],|AC_INIT([matiec], [${VERSION}],|" configure.ac
 
-      - name: Build
+      - name: Build for x86_64
         run: |
           export PATH="$(brew --prefix bison)/bin:$(brew --prefix flex)/bin:$PATH"
+          export CFLAGS="-arch x86_64"
+          export CXXFLAGS="-arch x86_64"
+          export LDFLAGS="-arch x86_64"
           autoreconf -i
-          ./configure
+          ./configure --host=x86_64-apple-darwin
           make -j"$(sysctl -n hw.ncpu)" HGVERSION="$(git rev-parse --short HEAD)"
 
       - name: Verify binary
         run: |
           file iec2c
-          ./iec2c --help || true
+          arch -x86_64 ./iec2c --help || true
 
       - name: Package
         run: |
