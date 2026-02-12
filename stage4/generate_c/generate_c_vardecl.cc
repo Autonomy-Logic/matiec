@@ -79,9 +79,29 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
   private:
     int current_dimension;
     unsigned long long int array_size;
+    std::vector<unsigned long long int> array_dimensions; // individual dimension sizes for multi-dimensional arrays
     unsigned long long int defined_values_count;
     unsigned long long int current_initialization_count;
     unsigned int current_varqualifier;
+
+    /* Print multi-dimensional array subscripts for a given flat index.
+     * For example, for dimensions [10, 5] and flat index 7, prints "[1][2]".
+     * This ensures we always index down to the leaf element (which has .flags and .value).
+     */
+    void print_multidim_index(unsigned long long int flat_idx) {
+      for (size_t d = 0; d < array_dimensions.size(); d++) {
+        // Compute the product of all remaining dimensions after this one
+        unsigned long long int stride = 1;
+        for (size_t k = d + 1; k < array_dimensions.size(); k++)
+          stride *= array_dimensions[k];
+        unsigned long long int dim_idx = (flat_idx / stride) % array_dimensions[d];
+        s4o.print("[");
+        char idx_str[32];
+        snprintf(idx_str, sizeof(idx_str), "%llu", dim_idx);
+        s4o.print(idx_str);
+        s4o.print("]");
+      }
+    }
 
   public:
     generate_c_array_initialization_c(stage4out_c *s4o_ptr): generate_c_base_and_typeid_c(s4o_ptr) {
@@ -95,10 +115,11 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
 
     void init_array_size(symbol_c *array_specification) {
       array_size = 1;
+      array_dimensions.clear();
       defined_values_count = 0;
       current_initialization_count = 0;
       array_base_type = array_default_value = array_default_initialization = NULL;
-      
+
       current_mode = arraysize_am;
       array_specification->accept(*this);
     }
@@ -108,39 +129,49 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
     }
 
     void init_fb_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
-      // Generate loop-based initialization for function block arrays
-      // For an array like ARRAY [1..2] OF TON, generate:
-      // for (int __i = 0; __i < 2; __i++) {
-      //   TON_init__(&data__->SOMETHING.table[__i], retain);
-      // }
-      
+      // Generate nested-loop initialization for function block arrays.
+      // For a 1D array ARRAY [1..2] OF TON, generates:
+      //   for (int __d0 = 0; __d0 < 2; __d0++) {
+      //     TON_init__(&data__->SOMETHING.value.table[__d0], retain);
+      //   }
+      // For a 2D array ARRAY [0..2, 0..1] OF TON, generates:
+      //   for (int __d0 = 0; __d0 < 3; __d0++) {
+      //     for (int __d1 = 0; __d1 < 2; __d1++) {
+      //       TON_init__(&data__->SOMETHING.value.table[__d0][__d1], retain);
+      //     }
+      //   }
+
       list_c *list = dynamic_cast<list_c *>(var1_list);
       if (list == NULL) ERROR;
-      
+
       for (int i = 0; i < list->n; i++) {
         s4o.print("\n");
         s4o.print(s4o.indent_spaces);
-        s4o.print("for (int __i = 0; __i < ");
-        // Print the array size
-        char size_str[32];
-        snprintf(size_str, sizeof(size_str), "%llu", array_size);
-        s4o.print(size_str);
-        s4o.print("; __i++) {\n");
-        s4o.indent_right();
-        s4o.print(s4o.indent_spaces);
-        
-        // Generate the FB init call: FB_TYPE_init__(&data__->VARNAME.value.table[__i], retain);
-        // Note: .value is needed because __DECLARE_VAR creates a wrapper type __IEC_<type>_t
-        // with a .value field containing the actual array struct
+
+        // Generate nested for-loops, one per dimension
+        for (size_t d = 0; d < array_dimensions.size(); d++) {
+          char dim_str[64];
+          snprintf(dim_str, sizeof(dim_str), "for (int __d%zu = 0; __d%zu < %llu; __d%zu++) {\n",
+                   d, d, array_dimensions[d], d);
+          s4o.print(dim_str);
+          s4o.indent_right();
+          s4o.print(s4o.indent_spaces);
+        }
+
+        // Generate the FB init call: FB_TYPE_init__(&data__->VARNAME.value.table[__d0][__d1]..., retain);
         array_base_type->accept(*this);
         s4o.print(FB_INIT_SUFFIX);
         s4o.print("(&");
         print_variable_prefix();
-        // Set mode to print the variable name correctly
         current_mode = none_am;
         list->get_element(i)->accept(*this);
-        s4o.print(".value.table[__i]");
-        
+        s4o.print(".value.table");
+        for (size_t d = 0; d < array_dimensions.size(); d++) {
+          char subscript[32];
+          snprintf(subscript, sizeof(subscript), "[__d%zu]", d);
+          s4o.print(subscript);
+        }
+
         // Print retain parameter
         if (current_varqualifier & 0x0002) {  // retain_vq
           s4o.print(",1");
@@ -149,41 +180,55 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         } else {
           s4o.print(",retain");
         }
-        
+
         s4o.print(");\n");
-        s4o.indent_left();
-        s4o.print(s4o.indent_spaces);
-        s4o.print("}");
+
+        // Close nested for-loops (innermost first)
+        for (size_t d = array_dimensions.size(); d > 0; d--) {
+          s4o.indent_left();
+          s4o.print(s4o.indent_spaces);
+          s4o.print("}");
+          if (d > 1) s4o.print("\n");
+        }
       }
     }
 
     void init_elementary_array(symbol_c *var1_list, symbol_c *array_specification, symbol_c *array_initialization) {
-      // Generate loop-based initialization for elementary arrays with wrapper elements
-      // For an array like ARRAY [1..3] OF INT := [10, 20, 30], generate:
+      // Generate initialization for elementary arrays with wrapper elements.
+      // Uses multi-dimensional indexing to reach leaf elements (which have .flags and .value).
+      // For a 1D ARRAY [1..3] OF INT := [10, 20, 30], generates:
       // {
       //   __SET_VAR(, data__->INT_ARR.value.table[0], , 10);
       //   __SET_VAR(, data__->INT_ARR.value.table[1], , 20);
       //   __SET_VAR(, data__->INT_ARR.value.table[2], , 30);
       // }
-      
+      // For a 2D ARRAY [0..1, 0..2] OF INT, generates:
+      // {
+      //   __SET_VAR(, data__->ARR.value.table[0][0], , 0);
+      //   __SET_VAR(, data__->ARR.value.table[0][1], , 0);
+      //   __SET_VAR(, data__->ARR.value.table[0][2], , 0);
+      //   __SET_VAR(, data__->ARR.value.table[1][0], , 0);
+      //   ...
+      // }
+
       list_c *list = dynamic_cast<list_c *>(var1_list);
       if (list == NULL) ERROR;
-      
+
       // Flatten initialization values into a vector
       std::vector<symbol_c*> values;
-      
+
       // Use array_default_initialization which was set by init_array_size() via the array_spec_init_c visitor
       // This contains the actual initialization values from the IEC code
       symbol_c *init_values = array_default_initialization;
-      
+
       // init_values should be the array_initial_elements_list_c
       array_initial_elements_list_c *init_list = dynamic_cast<array_initial_elements_list_c *>(init_values);
-      
+
       if (init_list != NULL) {
         for (int i = 0; i < init_list->n && values.size() < array_size; i++) {
           symbol_c *list_elem = init_list->get_element(i);
           array_initial_elements_c *init_elem = dynamic_cast<array_initial_elements_c *>(list_elem);
-          
+
           if (init_elem != NULL) {
             // This is an array_initial_elements_c node (e.g., "2(10)" with explicit repetition)
             // Extract repetition count from integer
@@ -195,11 +240,11 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
                 repetition_count = GET_CVALUE(uint64, init_elem->integer);
               // If integer doesn't have a CVALUE, it means repetition count is 1 (implicit)
             }
-            
+
             // Get the value expression (or use default if NULL)
-            symbol_c *expr = (init_elem->array_initial_element != NULL) ? 
+            symbol_c *expr = (init_elem->array_initial_element != NULL) ?
                              init_elem->array_initial_element : array_default_value;
-            
+
             // Add this expression repetition_count times (up to array_size)
             for (unsigned long long int j = 0; j < repetition_count && values.size() < array_size; j++) {
               values.push_back(expr);
@@ -211,20 +256,20 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
             values.push_back(list_elem);
           }
         }
-      }else {
+      } else {
         // If array_initialization is not array_initial_elements_list_c, it might be a single value
         // or some other form. For now, just use default values.
         // This handles cases where the initialization is not in the expected format.
       }
-      
+
       // Generate initialization code for each variable in var1_list
       for (int var_idx = 0; var_idx < list->n; var_idx++) {
         s4o.print("\n");
         s4o.print(s4o.indent_spaces);
         s4o.print("{\n");
         s4o.indent_right();
-        
-        // Emit __SET_VAR assignments for explicit values
+
+        // Emit __SET_VAR assignments for explicit values, using multi-dimensional indexing
         for (size_t i = 0; i < values.size(); i++) {
           s4o.print(s4o.indent_spaces);
           s4o.print(SET_VAR);
@@ -232,19 +277,17 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
           print_variable_prefix();
           current_mode = none_am;
           list->get_element(var_idx)->accept(*this);
-          s4o.print(".value.table[");
-          char idx_str[32];
-          snprintf(idx_str, sizeof(idx_str), "%zu", i);
-          s4o.print(idx_str);
-          s4o.print("],,");
+          s4o.print(".value.table");
+          print_multidim_index(i);
+          s4o.print(",,");
           // Print the value expression using initializationvalue_am mode
           current_mode = initializationvalue_am;
           values[i]->accept(*this);
           current_mode = none_am;
           s4o.print(");\n");
         }
-        
-        // Fill remaining elements with default value
+
+        // Fill remaining elements with default value, using multi-dimensional indexing
         for (unsigned long long int i = values.size(); i < array_size; i++) {
           s4o.print(s4o.indent_spaces);
           s4o.print(SET_VAR);
@@ -252,18 +295,16 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
           print_variable_prefix();
           current_mode = none_am;
           list->get_element(var_idx)->accept(*this);
-          s4o.print(".value.table[");
-          char idx_str[32];
-          snprintf(idx_str, sizeof(idx_str), "%llu", i);
-          s4o.print(idx_str);
-          s4o.print("],,");
+          s4o.print(".value.table");
+          print_multidim_index(i);
+          s4o.print(",,");
           // Print the default value expression using initializationvalue_am mode
           current_mode = initializationvalue_am;
           array_default_value->accept(*this);
           current_mode = none_am;
           s4o.print(");\n");
         }
-        
+
         s4o.indent_left();
         s4o.print(s4o.indent_spaces);
         s4o.print("}");
@@ -444,9 +485,10 @@ class generate_c_array_initialization_c: public generate_c_base_and_typeid_c {
         case arraysize_am:
           /* res = a * b; --->  Check for overflow by pre-condition: If (UINT_MAX / a) < b => overflow! */
           if ((std::numeric_limits< unsigned long long int >::max() / array_size) < symbol->dimension)
-            STAGE4_ERROR(symbol, symbol, "The array containing this subrange has a total number of elements larger than the maximum currently supported (%llu).", 
+            STAGE4_ERROR(symbol, symbol, "The array containing this subrange has a total number of elements larger than the maximum currently supported (%llu).",
                          std::numeric_limits< unsigned long long int >::max());
           array_size *= symbol->dimension;
+          array_dimensions.push_back(symbol->dimension);
           break;
         default:
           break;
