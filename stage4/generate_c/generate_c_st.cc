@@ -337,8 +337,18 @@ void *print_setter(symbol_c* symbol,
       value->accept(*this);
     } else {
       // Direct FB variable assignment
-      print_variable_prefix();
-      accept_without_prefix(value);
+      // External FB variables are pointers (declared via __DECLARE_EXTERNAL_FB),
+      // so we need to dereference them: *(data__->VAR)
+      unsigned int value_vartype = search_var_instance_decl->get_vartype(value);
+      if (value_vartype == search_var_instance_decl_c::external_vt) {
+        s4o.print("*(");
+        print_variable_prefix();
+        accept_without_prefix(value);
+        s4o.print(")");
+      } else {
+        print_variable_prefix();
+        accept_without_prefix(value);
+      }
     }
     return NULL;
   }
@@ -355,12 +365,15 @@ void *print_setter(symbol_c* symbol,
     unsigned int src_vartype = search_var_instance_decl->get_vartype(fb_value);
     
     // Print destination (LHS)
-    print_variable_prefix();
+    // External FB variables are pointers (declared via __DECLARE_EXTERNAL_FB),
+    // so we need to dereference them: *(data__->VAR)
     if (dest_vartype == search_var_instance_decl_c::external_vt) {
-      // External FB destination: need to dereference pointer
-      s4o.print("*");
+      s4o.print("*(");
+      print_variable_prefix();
       accept_without_prefix(symbol);
+      s4o.print(")");
     } else {
+      print_variable_prefix();
       accept_without_prefix(symbol);
     }
     
