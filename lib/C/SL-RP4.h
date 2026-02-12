@@ -1,3 +1,4 @@
+
 // FUNCTION_BLOCK ROTARY_SWITCH
 // Data part
 typedef struct {
@@ -36,18 +37,8 @@ static void ROTARY_SWITCH_body__(ROTARY_SWITCH *data__) {
   // Initialise TEMP variables
 
   if ((__GET_VAR(data__->READ,) == __BOOL_LITERAL(TRUE))) {
-    int16_t rotary_read = 0;
-    if (rotary_read < 0)
-    {
-      __SET_VAR(data__->,OUT,,0);
-      __SET_VAR(data__->,ERROR,,1);
-    }
-    else
-    {
-      __SET_VAR(data__->,OUT,,rotary_read);
-      __SET_VAR(data__->,ERROR,,0);
-    }
-  }
+    __SET_VAR(data__->,OUT,,0);
+  };
 
   goto __end;
 

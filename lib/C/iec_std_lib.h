@@ -21,9 +21,9 @@
 
 /* NOTE: This file is full of (what may seem at first) very strange macros.
  *       If you want to know what all these strange macros are doing,
- *       just parse this file through a C preprocessor (e.g. cpp), 
+ *       just parse this file through a C preprocessor (e.g. cpp),
  *       and analyse the output!
- *       $gcc -E iec_std_lib.h 
+ *       $gcc -E iec_std_lib.h
  */
 
 #ifndef _IEC_STD_LIB_H
@@ -41,7 +41,9 @@
 #include <string.h>
 #include <stdarg.h>
 
-#ifdef __APPLE__
+#if defined(__AVR__)
+typedef uint32_t time_t;
+#else
 #include <time.h>
 #endif
 
@@ -83,9 +85,9 @@ typedef struct {
 #else
 #define __32b_sufix L
 /* changed this from LL to L temporarily. It was causing a bug when compiling resulting code with gcc.
- * I have other things to worry about at the moment.. 
+ * I have other things to worry about at the moment..
  */
-#define __64b_sufix L   
+#define __64b_sufix L
 #endif
 
 
@@ -166,16 +168,6 @@ static inline void __iec_error(void) {
   /*exit(1);*/
 }
 
-
-/*******************/
-/* Math Operations */
-/*******************/
-
-static inline double __expt(double in1, double in2) {
-  return pow(in1, in2);
-}
-
-
 /*******************************/
 /* Time normalization function */
 /*******************************/
@@ -196,26 +188,26 @@ static inline void __normalize_timespec (IEC_TIMESPEC *ts) {
 /**********************************************/
 /* NOTE: The following function was turned into a macro, so it could be used to initialize the initial value of TIME variables.
  *       Since each macro parameter is evaluated several times, the macro may result in multiple function invocations if an expression
- *       containing a function invocation is passed as a parameter. However, currently matiec only uses this conversion macro with 
+ *       containing a function invocation is passed as a parameter. However, currently matiec only uses this conversion macro with
  *       constant literals, so it is safe to change it into a macro.
  */
 /* NOTE: I (Mario - msousa@fe.up.pt) believe that the following function contains a bug when handling negative times.
  *       The equivalent macro has this bug fixed.
  *       e.g.;
  *          T#3.8s
- *       using the function, will result in a timespec of 3.8s !!!: 
+ *       using the function, will result in a timespec of 3.8s !!!:
  *          tv_sec  =  4               <-----  1 *  3.8           is rounded up when converting a double to an int!
  *          tv_nsec = -200 000 000     <-----  1 * (3.8 - 4)*1e9
- * 
+ *
  *         -T#3.8s
- *       using the function, will result in a timespec of -11.8s !!!: 
+ *       using the function, will result in a timespec of -11.8s !!!:
  *          tv_sec  = -4                 <-----  -1 *  3.8 is rounded down when converting a double to an int!
  *          tv_nsec = -7 800 000 000     <-----  -1 * (3.8 - -4)*1e9
  */
-/* NOTE: Due to the fact that the C compiler may round a tv_sec number away from zero, 
+/* NOTE: Due to the fact that the C compiler may round a tv_sec number away from zero,
  *       the following macro may result in a timespec that is not normalized, i.e. with a tv_sec > 0, and a tv_nsec < 0 !!!!
  *       This is due to the rounding that C compiler applies when converting a (long double) to a (long int).
- *       To produce normalized timespec's we need to use floor(), but we cannot call any library functions since we want this macro to be 
+ *       To produce normalized timespec's we need to use floor(), but we cannot call any library functions since we want this macro to be
  *       useable as a variable initializer.
  *       VAR x : TIME = T#3.5h; END_VAR --->  IEC_TIME x = __time_to_timespec(1, 0, 0, 0, 3.5, 0);
  */
@@ -250,7 +242,7 @@ static inline IEC_TIMESPEC __time_to_timespec(int sign, double mseconds, double 
 
 
 /* NOTE: The following function was turned into a macro, so it could be used to initialize the initial value of TOD (TIME_OF_DAY) variables */
-/* NOTE: many (but not all) of the same comments made regarding __time_to_timespec() are also valid here, so go and read those comments too!*/
+/* NOTE: many (but not all) of the same comments made regarding __time_to_timespec() are also valid here, so go and read those comments too!
 /*
 static inline IEC_TIMESPEC __tod_to_timespec(double seconds, double minutes, double hours) {
   IEC_TIMESPEC ts;
@@ -351,7 +343,7 @@ static inline IEC_TIMESPEC __date_to_timespec(int day, int month, int year) {
   a400 = a100 >> 2;
   b400 = b100 >> 2;
   intervening_leap_days = (a4 - b4) - (a100 - b100) + (a400 - b400);
-  
+
   ts.tv_sec = ((year - EPOCH_YEAR) * 365 + intervening_leap_days + yday - 1) * 24 * 60 * 60;
   ts.tv_nsec = 0;
 
@@ -433,29 +425,102 @@ static inline STRING __bool_to_string(BOOL IN) {
 static inline STRING __bit_to_string(LWORD IN) {
     STRING res;
     res = __INIT_STRING;
+
     res.len = snprintf((char*)res.body, STR_MAX_LEN, "16#%llx",(long long unsigned int)IN);
-    if(res.len > STR_MAX_LEN) res.len = STR_MAX_LEN;
-    return res;
-}
-static inline STRING __real_to_string(LREAL IN) {
-    STRING res;
-    res = __INIT_STRING;
-    res.len = snprintf((char*)res.body, STR_MAX_LEN, "%.10g", IN);
     if(res.len > STR_MAX_LEN) res.len = STR_MAX_LEN;
     return res;
 }
 static inline STRING __sint_to_string(LINT IN) {
     STRING res;
     res = __INIT_STRING;
-    res.len = snprintf((char*)res.body, STR_MAX_LEN, "%lld", (long long int)IN);
+
+    char buf[32];  // enough for -9223372036854775808 + '\0'
+    char *p = &buf[31];
+    *p = '\0';
+
+    uint64_t val;
+    uint8_t neg = 0;
+
+    if (IN < 0) {
+        neg = 1;
+        val = (uint64_t)(-IN);
+    } else {
+        val = (uint64_t)IN;
+    }
+
+    do {
+        *--p = '0' + (val % 10);
+        val /= 10;
+    } while (val);
+
+    if (neg) {
+        *--p = '-';
+    }
+
+    // copy into STRING.body
+    res.len = strnlen(p, STR_MAX_LEN);
     if(res.len > STR_MAX_LEN) res.len = STR_MAX_LEN;
+    memcpy(res.body, p, res.len);
+
     return res;
 }
 static inline STRING __uint_to_string(ULINT IN) {
     STRING res;
     res = __INIT_STRING;
-    res.len = snprintf((char*)res.body, STR_MAX_LEN, "%llu", (long long unsigned int)IN);
+
+    char buf[32];  // enough for 2^64-1 = 18446744073709551615
+    char *p = &buf[31];
+    *p = '\0';
+
+    do {
+        *--p = '0' + (IN % 10);
+        IN /= 10;
+    } while (IN);
+
+    res.len = strnlen(p, STR_MAX_LEN);
     if(res.len > STR_MAX_LEN) res.len = STR_MAX_LEN;
+    memcpy(res.body, p, res.len);
+
+    return res;
+}
+static inline STRING __real_to_string(LREAL IN) {
+    STRING res;
+    res = __INIT_STRING;
+
+    char buf[32];
+    LINT int_part = (LINT)IN;
+    LREAL frac = IN - (LREAL)int_part;
+    if (frac < 0) frac = -frac;
+
+    // integer part
+    STRING int_str = __sint_to_string(int_part);
+
+    // fractional part (scaled)
+    LINT frac_part = (LINT)(frac * 1000000.0); // 6 decimals
+    STRING frac_str = __sint_to_string(frac_part);
+
+    // copy integer part
+    res.len = int_str.len;
+    memcpy(res.body, int_str.body, res.len);
+
+    // add decimal point
+    if (res.len < STR_MAX_LEN) {
+        res.body[res.len++] = '.';
+    }
+
+    // pad with leading zeros if necessary
+    if (frac_str.len < 6) {
+        int zeros = 6 - frac_str.len;
+        while (zeros-- > 0 && res.len < STR_MAX_LEN) {
+            res.body[res.len++] = '0';
+        }
+    }
+
+    // copy fractional part
+    int copy_len = (frac_str.len <= (STR_MAX_LEN - res.len)) ? frac_str.len : (STR_MAX_LEN - res.len);
+    memcpy(res.body + res.len, frac_str.body, copy_len);
+    res.len += copy_len;
+
     return res;
 }
     /***************/
@@ -595,7 +660,7 @@ static inline STRING __time_to_string(TIME IN){
     div_t days;
     /*t#5d14h12m18s3.5ms*/
     res = __INIT_STRING;
-    days = div(IN.tv_sec, SECONDS_PER_DAY);
+    days = div((int)IN.tv_sec, SECONDS_PER_DAY);
     if(!days.rem && IN.tv_nsec == 0){
         res.len = snprintf((char*)&res.body, STR_MAX_LEN, "T#%dd", days.quot);
     }else{
@@ -749,12 +814,8 @@ __ANY(__move_)
 
 
 
-#include "iec_std_functions.h"
 
-#ifdef  DISABLE_EN_ENO_PARAMETERS
-  #include "iec_std_FB_no_ENENO.h"
-#else
-  #include "iec_std_FB.h"
-#endif
+#include "iec_std_functions.h"
+#include "iec_std_FB.h"
 
 #endif /* _IEC_STD_LIB_H */

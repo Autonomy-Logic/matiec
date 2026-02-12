@@ -1,4 +1,4 @@
-//my_custom_library.h – this file contains the C code for the TEST block defined in the “My Custom Library”
+//my_custom_library.h – this file contains the C code for the TEST block defined in the "My Custom Library"
 
 // STM32CAN
 
@@ -11,6 +11,10 @@ typedef struct {
   __DECLARE_VAR(BOOL,DONE) 
   // FB private variables - TEMP, private and located variables
 } STM32CAN_CONF;
+
+static void STM32CAN_CONF_init__(STM32CAN_CONF *data__, BOOL retain);
+
+static void STM32CAN_CONF_body__(STM32CAN_CONF *data__);
 
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -30,6 +34,10 @@ typedef struct {
   __DECLARE_VAR(BOOL,DONE) 
   // FB private variables - TEMP, private and located variables
 } STM32CAN_WRITE;
+
+static void STM32CAN_WRITE_init__(STM32CAN_WRITE *data__, BOOL retain);
+
+static void STM32CAN_WRITE_body__(STM32CAN_WRITE *data__);
 
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -51,6 +59,11 @@ typedef struct {
 } STM32CAN_READ;
 
 
+uint8_t init_stm32can(int);
+uint8_t write_stm32can(uint8_t,uint32_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t, uint8_t);
+uint8_t read_stm32can(uint32_t*, uint8_t*, uint8_t*, uint8_t*, uint8_t*, uint8_t*, uint8_t*, uint8_t*, uint8_t*);
+
+
 //definition of blocks
 static void STM32CAN_CONF_init__(STM32CAN_CONF *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -62,6 +75,7 @@ static void STM32CAN_CONF_init__(STM32CAN_CONF *data__, BOOL retain) {
 
 // Code part
 static void STM32CAN_CONF_body__(STM32CAN_CONF *data__) {
+	
   // Control execution
   if (!__GET_VAR(data__->EN)) {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
@@ -70,9 +84,13 @@ static void STM32CAN_CONF_body__(STM32CAN_CONF *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-
-  __SET_VAR(data__->,DONE,,__BOOL_LITERAL(TRUE));
-
+  
+  if(__GET_VAR(data__->CONF)){
+  
+  __SET_VAR(data__->,DONE,,init_stm32can(__GET_VAR(data__->BR)));
+  
+  }
+  
   goto __end;
 
 __end:
@@ -108,8 +126,17 @@ static void STM32CAN_WRITE_body__(STM32CAN_WRITE *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-
-  __SET_VAR(data__->,DONE,,__BOOL_LITERAL(FALSE));
+  uint8_t write_done = 0;
+  if (__GET_VAR(data__->EN_PIN)){
+	  
+	write_done = write_stm32can(__GET_VAR(data__->CH),__GET_VAR(data__->ID),__GET_VAR(data__->D0),
+		__GET_VAR(data__->D1), __GET_VAR(data__->D2),__GET_VAR(data__->D3),
+			__GET_VAR(data__->D4), __GET_VAR(data__->D5),__GET_VAR(data__->D6),
+				__GET_VAR(data__->D7));		
+				
+  }
+  __SET_VAR(data__->,DONE,,write_done);
+  
   goto __end;
 
 __end:
@@ -143,10 +170,33 @@ static void STM32CAN_READ_body__(STM32CAN_READ *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-
   __SET_VAR(data__->,DONE,,__BOOL_LITERAL(FALSE));
   
-
+  uint32_t id = 0;
+  uint8_t d0 = 0;
+  uint8_t d1 = 0;
+  uint8_t d2 = 0;
+  uint8_t d3 = 0;
+  uint8_t d4 = 0;
+  uint8_t d5 = 0;
+  uint8_t d6 = 0;
+  uint8_t d7 = 0;
+  uint8_t read_done = 0;
+  
+  if (__GET_VAR(data__->EN_PIN)){
+	  read_done = read_stm32can(&id,&d0,&d1,&d2,&d3,&d4,&d5,&d6,&d7);
+	  
+  }
+  __SET_VAR(data__->,ID,,id);
+  __SET_VAR(data__->,D0,,d0);
+  __SET_VAR(data__->,D1,,d1);
+  __SET_VAR(data__->,D2,,d2);
+  __SET_VAR(data__->,D3,,d3);
+  __SET_VAR(data__->,D4,,d4);
+  __SET_VAR(data__->,D5,,d5);
+  __SET_VAR(data__->,D6,,d6);
+  __SET_VAR(data__->,D7,,d7);
+  __SET_VAR(data__->,DONE,,read_done);
   goto __end;
 
 __end:

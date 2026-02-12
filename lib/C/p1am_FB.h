@@ -162,6 +162,13 @@ typedef struct {
 /************************************************************************
  *                  DECLARATION OF P1AM LIB BLOCKS                      *
 ************************************************************************/
+//definition of external functions
+uint8_t p1am_init();
+void p1am_writeDiscrete(uint32_t, uint8_t, uint8_t);
+uint32_t p1am_readDiscrete(uint8_t, uint8_t);
+uint16_t p1am_readAnalog(uint8_t, uint8_t);
+void print_msg(char *);
+
 static void P1AM_INIT_init__(P1AM_INIT *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
   __INIT_VAR(data__->ENO,__BOOL_LITERAL(TRUE),retain)
@@ -179,8 +186,7 @@ static void P1AM_INIT_body__(P1AM_INIT *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside iec_std_FB.h file on arduino folder
-  __SET_VAR(data__->,SUCCESS,,0);
+  __SET_VAR(data__->,SUCCESS,,p1am_init());
 
   goto __end;
 
@@ -220,8 +226,25 @@ static void P1_16CDR_body__(P1_16CDR *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside iec_std_FB.h file on arduino folder
-  __SET_VAR(data__->,I1,,0);
+  uint8_t output_byte = __GET_VAR(data__->O8) << 7 | 
+                        __GET_VAR(data__->O7) << 6 | 
+                        __GET_VAR(data__->O6) << 5 | 
+                        __GET_VAR(data__->O5) << 4 | 
+                        __GET_VAR(data__->O4) << 3 | 
+                        __GET_VAR(data__->O3) << 2 | 
+                        __GET_VAR(data__->O2) << 1 | 
+                        __GET_VAR(data__->O1);
+  p1am_writeDiscrete(output_byte, __GET_VAR(data__->SLOT), 0);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint32_t input_byte = p1am_readDiscrete(__GET_VAR(data__->SLOT), 0);
+  __SET_VAR(data__->,I1,,bitRead(input_byte, 0));
+  __SET_VAR(data__->,I2,,bitRead(input_byte, 1));
+  __SET_VAR(data__->,I3,,bitRead(input_byte, 2));
+  __SET_VAR(data__->,I4,,bitRead(input_byte, 3));
+  __SET_VAR(data__->,I5,,bitRead(input_byte, 4));
+  __SET_VAR(data__->,I6,,bitRead(input_byte, 5));
+  __SET_VAR(data__->,I7,,bitRead(input_byte, 6));
+  __SET_VAR(data__->,I8,,bitRead(input_byte, 7));
 
   goto __end;
 
@@ -254,8 +277,16 @@ static void P1_08N_body__(P1_08N *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside p1am_FB.h file on arduino folder
-  __SET_VAR(data__->,I1,,0);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint32_t input_byte = p1am_readDiscrete(__GET_VAR(data__->SLOT), 0);
+  __SET_VAR(data__->,I1,,bitRead(input_byte, 0));
+  __SET_VAR(data__->,I2,,bitRead(input_byte, 1));
+  __SET_VAR(data__->,I3,,bitRead(input_byte, 2));
+  __SET_VAR(data__->,I4,,bitRead(input_byte, 3));
+  __SET_VAR(data__->,I5,,bitRead(input_byte, 4));
+  __SET_VAR(data__->,I6,,bitRead(input_byte, 5));
+  __SET_VAR(data__->,I7,,bitRead(input_byte, 6));
+  __SET_VAR(data__->,I8,,bitRead(input_byte, 7));
 
   goto __end;
 
@@ -296,8 +327,24 @@ static void P1_16N_body__(P1_16N *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside p1am_FB.h file on arduino folder
-  __SET_VAR(data__->,I1,,0);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint32_t input_byte = p1am_readDiscrete(__GET_VAR(data__->SLOT), 0);
+  __SET_VAR(data__->,I1,,bitRead(input_byte, 0));
+  __SET_VAR(data__->,I2,,bitRead(input_byte, 1));
+  __SET_VAR(data__->,I3,,bitRead(input_byte, 2));
+  __SET_VAR(data__->,I4,,bitRead(input_byte, 3));
+  __SET_VAR(data__->,I5,,bitRead(input_byte, 4));
+  __SET_VAR(data__->,I6,,bitRead(input_byte, 5));
+  __SET_VAR(data__->,I7,,bitRead(input_byte, 6));
+  __SET_VAR(data__->,I8,,bitRead(input_byte, 7));
+  __SET_VAR(data__->,I9,,bitRead(input_byte, 8));
+  __SET_VAR(data__->,I10,,bitRead(input_byte, 9));
+  __SET_VAR(data__->,I11,,bitRead(input_byte, 10));
+  __SET_VAR(data__->,I12,,bitRead(input_byte, 11));
+  __SET_VAR(data__->,I13,,bitRead(input_byte, 12));
+  __SET_VAR(data__->,I14,,bitRead(input_byte, 13));
+  __SET_VAR(data__->,I15,,bitRead(input_byte, 14));
+  __SET_VAR(data__->,I16,,bitRead(input_byte, 15));
 
   goto __end;
 
@@ -331,8 +378,15 @@ static void P1_08T_body__(P1_08T *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside iec_std_FB.h file on arduino folder
-  __SET_VAR(data__->,DUMMY,,0);
+  uint8_t output_byte = __GET_VAR(data__->O8) << 7 | 
+                        __GET_VAR(data__->O7) << 6 | 
+                        __GET_VAR(data__->O6) << 5 | 
+                        __GET_VAR(data__->O5) << 4 | 
+                        __GET_VAR(data__->O4) << 3 | 
+                        __GET_VAR(data__->O3) << 2 | 
+                        __GET_VAR(data__->O2) << 1 | 
+                        __GET_VAR(data__->O1);
+  p1am_writeDiscrete(output_byte, __GET_VAR(data__->SLOT), 0);
 
   goto __end;
 
@@ -374,8 +428,23 @@ static void P1_16TR_body__(P1_16TR *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside iec_std_FB.h file on arduino folder
-  __SET_VAR(data__->,DUMMY,,0);
+  uint16_t output_byte = __GET_VAR(data__->O16) << 15 | 
+                         __GET_VAR(data__->O15) << 14 | 
+                         __GET_VAR(data__->O14) << 13 | 
+                         __GET_VAR(data__->O13) << 12 | 
+                         __GET_VAR(data__->O12) << 11 | 
+                         __GET_VAR(data__->O11) << 10 | 
+                         __GET_VAR(data__->O10) << 9 |
+                         __GET_VAR(data__->O9) << 8 |
+                         __GET_VAR(data__->O8) << 7 | 
+                         __GET_VAR(data__->O7) << 6 | 
+                         __GET_VAR(data__->O6) << 5 | 
+                         __GET_VAR(data__->O5) << 4 | 
+                         __GET_VAR(data__->O4) << 3 | 
+                         __GET_VAR(data__->O3) << 2 | 
+                         __GET_VAR(data__->O2) << 1 | 
+                         __GET_VAR(data__->O1);
+  p1am_writeDiscrete(output_byte, __GET_VAR(data__->SLOT), 0);
 
   goto __end;
 
@@ -404,8 +473,15 @@ static void P1_04AD_body__(P1_04AD *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside p1am_FB.h file on arduino folder
-  __SET_VAR(data__->,I1,,0);
+  char msg[100];
+  uint16_t input_byte = p1am_readAnalog(__GET_VAR(data__->SLOT), 1);
+  __SET_VAR(data__->,I1,,input_byte);
+  input_byte = p1am_readAnalog(__GET_VAR(data__->SLOT), 2);
+  __SET_VAR(data__->,I2,,input_byte);
+  input_byte = p1am_readAnalog(__GET_VAR(data__->SLOT), 3);
+  __SET_VAR(data__->,I3,,input_byte);
+  input_byte = p1am_readAnalog(__GET_VAR(data__->SLOT), 4);
+  __SET_VAR(data__->,I4,,input_byte);
 
   goto __end;
 

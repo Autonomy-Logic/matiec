@@ -28,6 +28,9 @@ static void ADC_CONFIG_init__(ADC_CONFIG *data__, BOOL retain) {
   __INIT_VAR(data__->ADC_TYPE_LOCAL,0,retain)
 }
 
+// External C Functions
+uint8_t ADC_configure_channel(uint8_t adc_ch, uint8_t adc_type);
+
 // Code part
 static void ADC_CONFIG_body__(ADC_CONFIG *data__) {
   // Control execution
@@ -43,10 +46,16 @@ static void ADC_CONFIG_body__(ADC_CONFIG *data__) {
   if (((__GET_VAR(data__->ADC_CH,) != __GET_VAR(data__->ADC_CH_LOCAL,)) || (__GET_VAR(data__->ADC_TYPE,) != __GET_VAR(data__->ADC_TYPE_LOCAL,)))) {
     __SET_VAR(data__->,ADC_CH_LOCAL,,__GET_VAR(data__->ADC_CH,));
     __SET_VAR(data__->,ADC_TYPE_LOCAL,,__GET_VAR(data__->ADC_TYPE,));
-    __SET_VAR(data__->,SUCCESS,,__BOOL_LITERAL(TRUE));
-  } else {
-    __SET_VAR(data__->,SUCCESS,,__BOOL_LITERAL(FALSE));
-  };
+    uint8_t adc_ret = ADC_configure_channel(__GET_VAR(data__->ADC_CH,), __GET_VAR(data__->ADC_TYPE,));
+    if (adc_ret == 0)
+    {
+      __SET_VAR(data__->,SUCCESS,,__BOOL_LITERAL(FALSE));
+    }
+    else
+    {
+      __SET_VAR(data__->,SUCCESS,,__BOOL_LITERAL(TRUE));
+    }
+  }
 
   goto __end;
 

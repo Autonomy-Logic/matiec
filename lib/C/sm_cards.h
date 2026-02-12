@@ -1,13 +1,14 @@
-
 /***********************************************************************
-*                      THIS IS THE SIMULATOR INPLEMENTATION             *
+*                      THIS IS THE ARDUINO INPLEMENTATION             *
 ************************************************************************/
+
+
 
 /************************************************************************
  *                  DECLARATION OF SM_CARDS LIB BLOCKS                  *
 ************************************************************************/
 
-// SM_8RELAY SIMULATOR
+// SM_8RELAY
 // Data part
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -28,7 +29,8 @@ typedef struct {
 
 } SM_8RELAY;
 
-// SM_16RELAY SIMULATOR
+
+// SM_16RELAY ARDUINO
 // Data part
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -55,7 +57,6 @@ typedef struct {
   __DECLARE_VAR(SINT,DUMMY)
 
 } SM_16RELAY;
-
 
 // SM_8DIN
 // Data part
@@ -106,7 +107,7 @@ typedef struct {
 } SM_16DIN;
 
 
-// SM_4REL4IN
+// SM_4REL_4IN
 // Data part
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -134,6 +135,8 @@ typedef struct {
   __DECLARE_VAR(UINT,FREQ3)
   __DECLARE_VAR(UINT,FREQ4)
   __DECLARE_VAR(BOOL,BUTTON)
+  // FB private variables - TEMP, private and located variables
+
 } SM_4REL4IN;
 
 
@@ -197,7 +200,6 @@ typedef struct {
   __DECLARE_VAR(REAL,OWB_T4)
 } SM_INDUSTRIAL;
 
-
 // SM_BUILDING
 // Data part
 typedef struct {
@@ -248,7 +250,8 @@ typedef struct {
 } SM_BAS;
 
 
-// SM_HOME
+
+// SM_HOME ARDUINO
 // Data part
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -295,7 +298,7 @@ typedef struct {
 
 
 
-// SM_8MOSFET SIMULATOR
+// SM_8MOSFET ARDUINO
 // Data part
 typedef struct {
   // FB Interface - IN, OUT, IN_OUT variables
@@ -313,7 +316,6 @@ typedef struct {
   // FB private variables - TEMP, private and located variables
   __DECLARE_VAR(SINT,DUMMY)
 } SM_8MOSFET;
-
 /************************************************************************
  *                      END OF SM_CARDS LIB BLOCKS                      *
 ************************************************************************/
@@ -321,6 +323,8 @@ typedef struct {
 /************************************************************************
  *                  DECLARATION OF SM_CARDS LIB BLOCKS                  *
 ************************************************************************/
+int relay8Init(int);
+int relays8Set(uint8_t, uint8_t);
 
 static void SM_8RELAY_init__(SM_8RELAY *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -349,14 +353,34 @@ static void SM_8RELAY_body__(SM_8RELAY *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside sm_cards.h file on arduino folder
   __SET_VAR(data__->,DUMMY,,0);
-  
+  if(init == 0)
+  {
+	  if(0 == relay8Init(__GET_VAR(data__->STACK)))
+	  {
+		  init = 1;
+	  }
+  }
+  else // already init
+  {
+	uint8_t output_byte = __GET_VAR(data__->O8) << 7 | 
+                        __GET_VAR(data__->O7) << 6 | 
+                        __GET_VAR(data__->O6) << 5 | 
+                        __GET_VAR(data__->O5) << 4 | 
+                        __GET_VAR(data__->O4) << 3 | 
+                        __GET_VAR(data__->O3) << 2 | 
+                        __GET_VAR(data__->O2) << 1 | 
+                        __GET_VAR(data__->O1);
+	relays8Set(__GET_VAR(data__->STACK), output_byte);
+  }
   goto __end;
 
 __end:
   return;
 } // SM_8RELAY_body__()
+
+int relay16Init(int);
+int relay16Set(uint8_t, uint16_t);
 
 static void SM_16RELAY_init__(SM_16RELAY *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -392,15 +416,43 @@ static void SM_16RELAY_body__(SM_16RELAY *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-  // Dummy code - just for editor simulation. Real code is inside sm_cards.h file on arduino folder
+  // Dummy code - just for editor simulation. Real code is inside iec_std_FB.h file on arduino folder
   __SET_VAR(data__->,DUMMY,,0);
-  
+  if(init == 0)
+  {
+	  if(0 == relay16Init(__GET_VAR(data__->STACK)))
+	  {
+		  init = 1;
+	  }
+  }
+  else // already init
+  {
+	uint16_t output_byte = __GET_VAR(data__->O16) << 15 | 
+                        __GET_VAR(data__->O15) << 14 | 
+                        __GET_VAR(data__->O14) << 13 | 
+                        __GET_VAR(data__->O13) << 12 | 
+                        __GET_VAR(data__->O12) << 11 | 
+                        __GET_VAR(data__->O11) << 10 | 
+                        __GET_VAR(data__->O10) << 9 | 
+                        __GET_VAR(data__->O9) << 8 |
+                        __GET_VAR(data__->O8) << 7 | 
+                        __GET_VAR(data__->O7) << 6 | 
+                        __GET_VAR(data__->O6) << 5 | 
+                        __GET_VAR(data__->O5) << 4 | 
+                        __GET_VAR(data__->O4) << 3 | 
+                        __GET_VAR(data__->O3) << 2 | 
+                        __GET_VAR(data__->O2) << 1 | 
+                        __GET_VAR(data__->O1);
+	relay16Set(__GET_VAR(data__->STACK), output_byte);
+  }
   goto __end;
 
 __end:
   return;
 } // SM_16RELAY_body__()
 
+int digIn8Get(uint8_t, uint8_t*);
+int digIn8Init(int );
 
 static void SM_8DIN_init__(SM_8DIN *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -418,6 +470,7 @@ static void SM_8DIN_init__(SM_8DIN *data__, BOOL retain) {
 
 // Code part
 static void SM_8DIN_body__(SM_8DIN *data__) {
+	static uint8_t init = 0;
   // Control execution
   if (!__GET_VAR(data__->EN)) {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
@@ -426,13 +479,41 @@ static void SM_8DIN_body__(SM_8DIN *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
- // Dummy code - just for editor simulation. Real code is inside sm_cards.h file on arduino folder
-  __SET_VAR(data__->,I1,,0);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  
+  if(init == 0)
+  {
+  	  if(0 == digIn8Init(__GET_VAR(data__->STACK)))
+  	  {
+  		  init = 1;
+  	  }
+  }
+  else // already init
+  {
+	  uint8_t input_byte = 0;
+	  if(0 == digIn8Get(__GET_VAR(data__->STACK), &input_byte)){
+		  __SET_VAR(data__->,I1,,bitRead(input_byte, 0));
+		  __SET_VAR(data__->,I2,,bitRead(input_byte, 1));
+		  __SET_VAR(data__->,I3,,bitRead(input_byte, 2));
+		  __SET_VAR(data__->,I4,,bitRead(input_byte, 3));
+		  __SET_VAR(data__->,I5,,bitRead(input_byte, 4));
+		  __SET_VAR(data__->,I6,,bitRead(input_byte, 5));
+		  __SET_VAR(data__->,I7,,bitRead(input_byte, 6));
+		  __SET_VAR(data__->,I8,,bitRead(input_byte, 7));
+	  }
+  }
+
    goto __end;
 
 __end:
   return;
 } // SM_8DIN_body__()
+
+
+
+
+int digIn16Get(uint8_t, uint16_t*);
+int digIn16Init(int );
 
 static void SM_16DIN_init__(SM_16DIN *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -458,6 +539,7 @@ static void SM_16DIN_init__(SM_16DIN *data__, BOOL retain) {
 
 // Code part
 static void SM_16DIN_body__(SM_16DIN *data__) {
+	static uint8_t init = 0;
   // Control execution
   if (!__GET_VAR(data__->EN)) {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(FALSE));
@@ -466,14 +548,49 @@ static void SM_16DIN_body__(SM_16DIN *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
- // Dummy code - just for editor simulation. Real code is inside sm_cards.h file on arduino folder
-  __SET_VAR(data__->,I1,,0);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  
+  if(init == 0)
+  {
+  	  if(0 == digIn16Init(__GET_VAR(data__->STACK)))
+  	  {
+  		  init = 1;
+  	  }
+  }
+  else // already init
+  {
+	  uint16_t input_byte = 0;
+	  if(0 == digIn16Get(__GET_VAR(data__->STACK), &input_byte)){
+		  __SET_VAR(data__->,I1,,bitRead(input_byte, 0));
+		  __SET_VAR(data__->,I2,,bitRead(input_byte, 1));
+		  __SET_VAR(data__->,I3,,bitRead(input_byte, 2));
+		  __SET_VAR(data__->,I4,,bitRead(input_byte, 3));
+		  __SET_VAR(data__->,I5,,bitRead(input_byte, 4));
+		  __SET_VAR(data__->,I6,,bitRead(input_byte, 5));
+		  __SET_VAR(data__->,I7,,bitRead(input_byte, 6));
+		  __SET_VAR(data__->,I8,,bitRead(input_byte, 7));
+		  __SET_VAR(data__->,I9,,bitRead(input_byte, 8));
+		  __SET_VAR(data__->,I10,,bitRead(input_byte, 9));
+		  __SET_VAR(data__->,I11,,bitRead(input_byte, 10));
+		  __SET_VAR(data__->,I12,,bitRead(input_byte, 11));
+		  __SET_VAR(data__->,I13,,bitRead(input_byte, 12));
+		  __SET_VAR(data__->,I14,,bitRead(input_byte, 13));
+		  __SET_VAR(data__->,I15,,bitRead(input_byte, 14));
+		  __SET_VAR(data__->,I16,,bitRead(input_byte, 15));
+	  }
+  }
    goto __end;
 
 __end:
   return;
 } // SM_16DIN_body__()
 
+int r4i4SetRelays(uint8_t, uint8_t);
+int r4i4GetOptoInputs(uint8_t, uint8_t*);
+int r4i4GetACInputs(uint8_t, uint8_t*);
+int r4i4GetButton(uint8_t, uint8_t*);
+int r4i4GetPWMInFill(uint8_t, uint8_t, uint16_t*);
+int r4i4GetPWMInFreq(uint8_t, uint8_t, uint16_t*);
 
 static void SM_4REL4IN_init__(SM_4REL4IN *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -512,13 +629,71 @@ static void SM_4REL4IN_body__(SM_4REL4IN *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
- // Dummy code - just for editor simulation. Real code is inside sm_cards.h file on arduino folder
-  __SET_VAR(data__->,OPTO1,,0);
+  uint8_t output_byte = __GET_VAR(data__->RELAY4) << 3 | 
+                        __GET_VAR(data__->RELAY3) << 2 | 
+                        __GET_VAR(data__->RELAY2) << 1 | 
+                        __GET_VAR(data__->RELAY1);
+  r4i4SetRelays(__GET_VAR(data__->STACK), output_byte);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint8_t input_byte = 0;
+	if(0 == r4i4GetOptoInputs(__GET_VAR(data__->STACK), &input_byte)){
+		__SET_VAR(data__->,OPTO1,,bitRead(input_byte, 0));
+		__SET_VAR(data__->,OPTO2,,bitRead(input_byte, 1));
+		__SET_VAR(data__->,OPTO3,,bitRead(input_byte, 2));
+		__SET_VAR(data__->,OPTO4,,bitRead(input_byte, 3));
+	}
+	if(0 == r4i4GetACInputs(__GET_VAR(data__->STACK), &input_byte)){
+		__SET_VAR(data__->,AC_OPTO1,,bitRead(input_byte, 0));
+		__SET_VAR(data__->,AC_OPTO2,,bitRead(input_byte, 1));
+		__SET_VAR(data__->,AC_OPTO3,,bitRead(input_byte, 2));
+		__SET_VAR(data__->,AC_OPTO4,,bitRead(input_byte, 3));
+	}
+	if(0 == r4i4GetButton(__GET_VAR(data__->STACK), &input_byte)){
+		__SET_VAR(data__->,BUTTON,,bitRead(input_byte, 0));
+	}
+	uint16_t sint_val = 0;
+	
+    if( 0 == r4i4GetPWMInFreq(__GET_VAR(data__->STACK), 0, &sint_val) )
+    {
+		__SET_VAR(data__->,FREQ1,,sint_val);
+    }
+	if( 0 == r4i4GetPWMInFreq(__GET_VAR(data__->STACK), 1, &sint_val) )
+    {
+		__SET_VAR(data__->,FREQ2,,sint_val);
+    }
+	if( 0 == r4i4GetPWMInFreq(__GET_VAR(data__->STACK), 2, &sint_val) )
+    {
+		__SET_VAR(data__->,FREQ3,,sint_val);
+    }
+	if( 0 == r4i4GetPWMInFreq(__GET_VAR(data__->STACK), 3, &sint_val) )
+    {
+		__SET_VAR(data__->,FREQ4,,sint_val);
+    }
+
+	 if( 0 == r4i4GetPWMInFill(__GET_VAR(data__->STACK), 0, &sint_val) )
+    {
+		__SET_VAR(data__->,PWM1,,(float)sint_val/100);
+    }
+	if( 0 == r4i4GetPWMInFill(__GET_VAR(data__->STACK), 1, &sint_val) )
+    {
+		__SET_VAR(data__->,PWM2,,(float)sint_val/100);
+    }
+	if( 0 == r4i4GetPWMInFill(__GET_VAR(data__->STACK), 2, &sint_val) )
+    {
+		__SET_VAR(data__->,PWM3,,(float)sint_val/100);
+    }
+	if( 0 == r4i4GetPWMInFill(__GET_VAR(data__->STACK), 3, &sint_val) )
+    {
+		__SET_VAR(data__->,PWM4,,(float)sint_val/100);
+    }
+
    goto __end;
 
 __end:
   return;
 } // SM_4REL4IN_body__()
+
+int rtdGetTemp(uint8_t, uint8_t, float*);
 
 static void SM_RTD_init__(SM_RTD *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -544,12 +719,55 @@ static void SM_RTD_body__(SM_RTD *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
-goto __end;
+  float val = 0;
+	
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,TEMP1,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,TEMP2,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,TEMP3,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,TEMP4,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 4, &val))
+  {
+	__SET_VAR(data__->,TEMP5,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 5, &val))
+  {
+	__SET_VAR(data__->,TEMP6,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 6, &val))
+  {
+	__SET_VAR(data__->,TEMP7,,val);
+  }
+  if( 0 == rtdGetTemp(__GET_VAR(data__->STACK), 7, &val))
+  {
+	__SET_VAR(data__->,TEMP8,,val);
+  }
+	
+   goto __end;
 
 __end:
   return;
 } // SM_RTD_body__()
 
+int indSetLeds(uint8_t, uint8_t);
+int indGetOptoInputs(uint8_t, uint8_t*);
+int indGet0_10Vin(uint8_t, uint8_t, float*);
+int indGet4_20mAin(uint8_t, uint8_t, float*);
+int indGet1WbTemp(uint8_t, uint8_t, float*);
+int indSet0_10Vout(uint8_t, uint8_t, float);
+int indSet4_20mAout(uint8_t, uint8_t, float);
+int indSetPWMout(uint8_t, uint8_t, float);
 
 static void SM_INDUSTRIAL_init__(SM_INDUSTRIAL *data__, BOOL retain) {
   __INIT_VAR(data__->EN,__BOOL_LITERAL(TRUE),retain)
@@ -599,6 +817,93 @@ static void SM_INDUSTRIAL_body__(SM_INDUSTRIAL *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
+  uint8_t output_byte = __GET_VAR(data__->LED4) << 3 | 
+                        __GET_VAR(data__->LED3) << 2 | 
+                        __GET_VAR(data__->LED2) << 1 | 
+                        __GET_VAR(data__->LED1);
+  indSetLeds(__GET_VAR(data__->STACK), output_byte);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint8_t input_byte = 0;
+  if(0 == indGetOptoInputs(__GET_VAR(data__->STACK), &input_byte)){
+	__SET_VAR(data__->,OPTO1,,bitRead(input_byte, 0));
+	__SET_VAR(data__->,OPTO2,,bitRead(input_byte, 1));
+	__SET_VAR(data__->,OPTO3,,bitRead(input_byte, 2));
+	__SET_VAR(data__->,OPTO4,,bitRead(input_byte, 3));
+  }
+  float val = 0;
+
+// ---------  0-10V inputs	------------------
+  if( 0 == indGet0_10Vin(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,I0_10V1,,val);
+  }
+  if( 0 == indGet0_10Vin(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,I0_10V2,,val);
+  }
+  if( 0 == indGet0_10Vin(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,I0_10V3,,val);
+  }
+  if( 0 == indGet0_10Vin(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,I0_10V4,,val);
+  }
+
+// -------------- 4-20mA inputs -----------------------
+  if( 0 == indGet4_20mAin(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,I4_20MA1,,val);
+  }
+  if( 0 == indGet4_20mAin(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,I4_20MA2,,val);
+  }
+  if( 0 == indGet4_20mAin(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,I4_20MA3,,val);
+  }
+  if( 0 == indGet4_20mAin(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,I4_20MA4,,val);
+  }
+
+// --------------- One wire bus temperature inputs (dsb20 sensors)
+  if( 0 == indGet1WbTemp(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,OWB_T1,,val);
+  }
+  if( 0 == indGet1WbTemp(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,OWB_T2,,val);
+  }
+  if( 0 == indGet1WbTemp(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,OWB_T3,,val);
+  }
+  if( 0 == indGet1WbTemp(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,OWB_T4,,val);
+  }
+
+// ----------------- 0-10V outputs ---------------------------------------
+  indSet0_10Vout(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->Q0_10V1));
+  indSet0_10Vout(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->Q0_10V2));
+  indSet0_10Vout(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->Q0_10V3));
+  indSet0_10Vout(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->Q0_10V4));
+
+// ----------------- 4-20 mA outputs --------------------------------------
+  indSet4_20mAout(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->Q4_20MA1));
+  indSet4_20mAout(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->Q4_20MA2));
+  indSet4_20mAout(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->Q4_20MA3));
+  indSet4_20mAout(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->Q4_20MA4));
+
+// ---------------- open dranin with PWM output fill factor 0-100% ---------
+  indSetPWMout(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->QOD1));
+  indSetPWMout(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->QOD2));
+  indSetPWMout(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->QOD3));
+  indSetPWMout(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->QOD4));
+
 
 goto __end;
 
@@ -652,7 +957,13 @@ static void SM_BAS_init__(SM_BAS *data__, BOOL retain) {
   __INIT_VAR(data__->OWB_T4,0,retain)
 }
 
+
 // Code part
+int basSetTriacs(uint8_t, uint8_t);
+int basSet0_10Vout(uint8_t, uint8_t, float);
+int basGetDryContacts(uint8_t, uint8_t*);
+int basGetUniversalIn(uint8_t, uint8_t, uint8_t, float*);
+int basGet1WbTemp(uint8_t, uint8_t, float*);
 static void SM_BAS_body__(SM_BAS *data__) {
   // Control execution
   if (!__GET_VAR(data__->EN)) {
@@ -662,12 +973,97 @@ static void SM_BAS_body__(SM_BAS *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
+  uint8_t output_byte = __GET_VAR(data__->LED4) << 7 |
+						__GET_VAR(data__->LED3) << 6 |
+						__GET_VAR(data__->LED2) << 5 |
+						__GET_VAR(data__->LED1) << 4 |
+						__GET_VAR(data__->TRIAC4) << 3 | 
+                        __GET_VAR(data__->TRIAC3) << 2 | 
+                        __GET_VAR(data__->TRIAC2) << 1 | 
+                        __GET_VAR(data__->TRIAC1);
+  
+  basSetTriacs(__GET_VAR(data__->STACK), output_byte);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint8_t input_byte = 0;
+  if(0 == basGetDryContacts(__GET_VAR(data__->STACK), &input_byte)){
+	__SET_VAR(data__->,DRY_C1,,bitRead(input_byte, 0));
+	__SET_VAR(data__->,DRY_C2,,bitRead(input_byte, 1));
+	__SET_VAR(data__->,DRY_C3,,bitRead(input_byte, 2));
+	__SET_VAR(data__->,DRY_C4,,bitRead(input_byte, 3));
+	__SET_VAR(data__->,DRY_C5,,bitRead(input_byte, 4));
+	__SET_VAR(data__->,DRY_C6,,bitRead(input_byte, 5));
+	__SET_VAR(data__->,DRY_C7,,bitRead(input_byte, 6));
+	__SET_VAR(data__->,DRY_C8,,bitRead(input_byte, 7));	
+  }
+  float val = 0;
+
+// ---------  Universal  inputs	------------------
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->IN1_T), &val))
+  {
+	__SET_VAR(data__->,UNIV1,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->IN2_T), &val))
+  {
+	__SET_VAR(data__->,UNIV2,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->IN3_T), &val))
+  {
+	__SET_VAR(data__->,UNIV3,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->IN4_T), &val))
+  {
+	__SET_VAR(data__->,UNIV4,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 4, __GET_VAR(data__->IN5_T), &val))
+  {
+	__SET_VAR(data__->,UNIV5,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 5, __GET_VAR(data__->IN6_T), &val))
+  {
+	__SET_VAR(data__->,UNIV6,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 6, __GET_VAR(data__->IN7_T), &val))
+  {
+	__SET_VAR(data__->,UNIV7,,val);
+  }
+  if( 0 == basGetUniversalIn(__GET_VAR(data__->STACK), 7, __GET_VAR(data__->IN8_T), &val))
+  {
+	__SET_VAR(data__->,UNIV8,,val);
+  }
+
+
+// --------------- One wire bus temperature inputs (dsb20 sensors)
+  if( 0 == basGet1WbTemp(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,OWB_T1,,val);
+  }
+  if( 0 == basGet1WbTemp(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,OWB_T2,,val);
+  }
+  if( 0 == basGet1WbTemp(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,OWB_T3,,val);
+  }
+  if( 0 == basGet1WbTemp(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,OWB_T4,,val);
+  }
+
+// ----------------- 0-10V outputs ---------------------------------------
+  basSet0_10Vout(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->Q0_10V1));
+  basSet0_10Vout(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->Q0_10V2));
+  basSet0_10Vout(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->Q0_10V3));
+  basSet0_10Vout(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->Q0_10V4));
+
+
 
 goto __end;
 
 __end:
   return;
 } // SM_BAS_body__()
+
 
 
 static void SM_HOME_init__(SM_HOME *data__, BOOL retain) {
@@ -713,6 +1109,14 @@ static void SM_HOME_init__(SM_HOME *data__, BOOL retain) {
 }
 
 // Code part
+
+int homeSetRelays(uint8_t, uint8_t);
+int homeSet0_10Vout(uint8_t, uint8_t, float);
+int homeSetOD(uint8_t, uint8_t, float);
+int homeGetOpto(uint8_t, uint8_t*);
+int homeGetADC(uint8_t, uint8_t, float*);
+int homeGet1WbTemp(uint8_t, uint8_t, float*);
+
 static void SM_HOME_body__(SM_HOME *data__) {
   // Control execution
   if (!__GET_VAR(data__->EN)) {
@@ -722,6 +1126,96 @@ static void SM_HOME_body__(SM_HOME *data__) {
   else {
     __SET_VAR(data__->,ENO,,__BOOL_LITERAL(TRUE));
   }
+  uint8_t output_byte = __GET_VAR(data__->RELAY8) << 7 |
+						__GET_VAR(data__->RELAY7) << 6 |
+						__GET_VAR(data__->RELAY6) << 5 |
+						__GET_VAR(data__->RELAY5) << 4 |
+						__GET_VAR(data__->RELAY4) << 3 | 
+                        __GET_VAR(data__->RELAY3) << 2 | 
+                        __GET_VAR(data__->RELAY2) << 1 | 
+                        __GET_VAR(data__->RELAY1);
+  
+  homeSetRelays(__GET_VAR(data__->STACK), output_byte);
+  #define bitRead(value, bit) (((value) >> (bit)) & 0x01)
+  uint8_t input_byte = 0;
+  if(0 == homeGetOpto(__GET_VAR(data__->STACK), &input_byte)){
+	__SET_VAR(data__->,OPTO1,,bitRead(input_byte, 0));
+	__SET_VAR(data__->,OPTO2,,bitRead(input_byte, 1));
+	__SET_VAR(data__->,OPTO3,,bitRead(input_byte, 2));
+	__SET_VAR(data__->,OPTO4,,bitRead(input_byte, 3));
+	__SET_VAR(data__->,OPTO5,,bitRead(input_byte, 4));
+	__SET_VAR(data__->,OPTO6,,bitRead(input_byte, 5));
+	__SET_VAR(data__->,OPTO7,,bitRead(input_byte, 6));
+	__SET_VAR(data__->,OPTO8,,bitRead(input_byte, 7));	
+  }
+  float val = 0;
+
+// ---------  ADC  inputs	------------------
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,ADC1,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,ADC2,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,ADC3,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,ADC4,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 4, &val))
+  {
+	__SET_VAR(data__->,ADC5,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 5, &val))
+  {
+	__SET_VAR(data__->,ADC6,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 6, &val))
+  {
+	__SET_VAR(data__->,ADC7,,val);
+  }
+  if( 0 == homeGetADC(__GET_VAR(data__->STACK), 7, &val))
+  {
+	__SET_VAR(data__->,ADC8,,val);
+  }
+ 
+
+// --------------- One wire bus temperature inputs (dsb20 sensors)
+  if( 0 == homeGet1WbTemp(__GET_VAR(data__->STACK), 0, &val))
+  {
+	__SET_VAR(data__->,OWB_T1,,val);
+  }
+  if( 0 == homeGet1WbTemp(__GET_VAR(data__->STACK), 1, &val))
+  {
+	__SET_VAR(data__->,OWB_T2,,val);
+  }
+  if( 0 == homeGet1WbTemp(__GET_VAR(data__->STACK), 2, &val))
+  {
+	__SET_VAR(data__->,OWB_T3,,val);
+  }
+  if( 0 == homeGet1WbTemp(__GET_VAR(data__->STACK), 3, &val))
+  {
+	__SET_VAR(data__->,OWB_T4,,val);
+  }
+
+// ----------------- 0-10V outputs ---------------------------------------
+  homeSet0_10Vout(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->Q0_10V1));
+  homeSet0_10Vout(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->Q0_10V2));
+  homeSet0_10Vout(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->Q0_10V3));
+  homeSet0_10Vout(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->Q0_10V4));
+
+  // -------------- Open-Drain Outputs -------------------------------------
+  homeSetOD(__GET_VAR(data__->STACK), 0, __GET_VAR(data__->QOD1));
+  homeSetOD(__GET_VAR(data__->STACK), 1, __GET_VAR(data__->QOD2));
+  homeSetOD(__GET_VAR(data__->STACK), 2, __GET_VAR(data__->QOD3));
+  homeSetOD(__GET_VAR(data__->STACK), 3, __GET_VAR(data__->QOD4));
+  
+
 
 goto __end;
 
@@ -747,6 +1241,10 @@ static void SM_8MOSFET_init__(SM_8MOSFET *data__, BOOL retain) {
 }
 
 // Code part
+
+int mosfet8Init(int);
+int mosfets8Set(uint8_t, uint8_t);
+
 static void SM_8MOSFET_body__(SM_8MOSFET *data__) {
 	static uint8_t init = 0;
   // Control execution
@@ -759,9 +1257,29 @@ static void SM_8MOSFET_body__(SM_8MOSFET *data__) {
   }
   // Dummy code - just for editor simulation. Real code is inside sm_cards.h file on arduino folder
   __SET_VAR(data__->,DUMMY,,0);
-  
+   if(init == 0)
+  {
+	  if(0 == mosfet8Init(__GET_VAR(data__->STACK)))
+	  {
+		  init = 1;
+	  }
+  }
+  else // already init
+  {
+	uint8_t output_byte = __GET_VAR(data__->MOS8) << 7 | 
+                        __GET_VAR(data__->MOS7) << 6 | 
+                        __GET_VAR(data__->MOS6) << 5 | 
+                        __GET_VAR(data__->MOS5) << 4 | 
+                        __GET_VAR(data__->MOS4) << 3 | 
+                        __GET_VAR(data__->MOS3) << 2 | 
+                        __GET_VAR(data__->MOS2) << 1 | 
+                        __GET_VAR(data__->MOS1);
+	mosfets8Set(__GET_VAR(data__->STACK), output_byte);
+  }
   goto __end;
 
 __end:
   return;
 } // SM_8MOSFET_body__()
+
+
