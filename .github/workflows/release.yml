@@ -71,10 +71,9 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p staging/matiec/lib/C
+          mkdir -p staging/matiec/lib
           cp iec2c iec2iec staging/matiec/
-          cp lib/*.txt staging/matiec/lib/
-          cp lib/C/*.h staging/matiec/lib/C/
+          cp lib/*.txt lib/*.h staging/matiec/lib/
           find staging -name '.DS_Store' -delete
           tar -czf matiec-linux-x64.tar.gz -C staging matiec
 
@@ -114,10 +113,9 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p staging/matiec/lib/C
+          mkdir -p staging/matiec/lib
           cp iec2c iec2iec staging/matiec/
-          cp lib/*.txt staging/matiec/lib/
-          cp lib/C/*.h staging/matiec/lib/C/
+          cp lib/*.txt lib/*.h staging/matiec/lib/
           find staging -name '.DS_Store' -delete
           tar -czf matiec-linux-arm64.tar.gz -C staging matiec
 
@@ -161,10 +159,9 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p staging/matiec/lib/C
+          mkdir -p staging/matiec/lib
           cp iec2c iec2iec staging/matiec/
-          cp lib/*.txt staging/matiec/lib/
-          cp lib/C/*.h staging/matiec/lib/C/
+          cp lib/*.txt lib/*.h staging/matiec/lib/
           find staging -name '.DS_Store' -delete
           tar -czf matiec-darwin-x64.tar.gz -C staging matiec
 
@@ -205,10 +202,9 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p staging/matiec/lib/C
+          mkdir -p staging/matiec/lib
           cp iec2c iec2iec staging/matiec/
-          cp lib/*.txt staging/matiec/lib/
-          cp lib/C/*.h staging/matiec/lib/C/
+          cp lib/*.txt lib/*.h staging/matiec/lib/
           find staging -name '.DS_Store' -delete
           tar -czf matiec-darwin-arm64.tar.gz -C staging matiec
 
@@ -249,10 +245,9 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p staging/matiec/lib/C
+          mkdir -p staging/matiec/lib
           cp iec2c.exe iec2iec.exe staging/matiec/
-          cp lib/*.txt staging/matiec/lib/
-          cp lib/C/*.h staging/matiec/lib/C/
+          cp lib/*.txt lib/*.h staging/matiec/lib/
           find staging -name '.DS_Store' -delete
           cd staging && zip -r ../matiec-win32-x64.zip matiec
 
