@@ -912,7 +912,9 @@ __extrem_(MAX__STRING__STRING, STRING, __STR_CMP(op1,tmp) < 0) /* Overloaded fun
     /**************/
     /*     MIN    */
     /**************/
-/* Min for numerical data types */	
+/* Min for numerical data types */
+__extrem_(MIN_BOOL, BOOL, op1 > tmp) /* The explicitly typed standard functions */
+__extrem_(MIN__BOOL__BOOL, BOOL, op1 > tmp) /* Overloaded function */
 #define __iec_(TYPENAME) \
 __extrem_(MIN_##TYPENAME, TYPENAME, op1 > tmp) /* The explicitly typed standard functions */\
 __extrem_(MIN__##TYPENAME##__##TYPENAME, TYPENAME, op1 > tmp) /* Overloaded function */
@@ -937,6 +939,16 @@ __extrem_(MIN__STRING__STRING, STRING, __STR_CMP(op1,tmp) > 0) /* Overloaded fun
     /**************/
 
 /* Limit for numerical data types */
+/* The explicitly typed standard functions */
+static inline BOOL LIMIT_BOOL(EN_ENO_PARAMS, BOOL MN, BOOL IN, BOOL MX){
+  TEST_EN(BOOL)
+  return IN > MN ? IN < MX ? IN : MX : MN;
+}
+/* Overloaded function */
+static inline BOOL LIMIT__BOOL__BOOL__BOOL__BOOL(EN_ENO_PARAMS, BOOL MN, BOOL IN, BOOL MX){
+  TEST_EN(BOOL)
+  return IN > MN ? IN < MX ? IN : MX : MN;
+}
 #define __iec_(TYPENAME)\
 /* The explicitly typed standard functions */\
 static inline TYPENAME LIMIT_##TYPENAME(EN_ENO_PARAMS, TYPENAME MN, TYPENAME IN, TYPENAME MX){\
@@ -1211,6 +1223,8 @@ static inline BOOL fname(EN_ENO_PARAMS, TYPENAME op1, TYPENAME op2){\
 }
 
 /* Comparison for numerical data types */
+__ne_num(NE_BOOL, BOOL) /* The explicitly typed standard functions */
+__ne_num(NE__BOOL__BOOL__BOOL, BOOL) /* Overloaded function */
 #define __iec_(TYPENAME) \
 __ne_num(NE_##TYPENAME, TYPENAME) /* The explicitly typed standard functions */\
 __ne_num(NE__BOOL__##TYPENAME##__##TYPENAME, TYPENAME) /* Overloaded function */
