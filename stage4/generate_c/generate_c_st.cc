@@ -559,9 +559,19 @@ void *print_setter(symbol_c* symbol,
         print_variable_prefix();
         // It is my (MJS) conviction that by this time the following will always be true...
         //   wanted_variablegeneration == expression_vg;
-        // For complex FB expressions (like array elements), we need to print them directly
-        // without going through print_getter
-        accept_without_prefix(fb_symbol);
+        // For array-of-FB elements, print array name without prefix but keep prefix
+        // active for subscript expressions (so loop variables get wrapped in __GET_VAR)
+        array_variable_c *fb_array_var = dynamic_cast<array_variable_c *>(fb_symbol);
+        if (fb_array_var != NULL) {
+          accept_without_prefix(fb_array_var->subscripted_variable);
+          symbol_c *fb_array_type = search_varfb_instance_type->get_basetype_decl(fb_array_var->subscripted_variable);
+          s4o.print(".value.table");
+          current_array_type = fb_array_type;
+          fb_array_var->subscript_list->accept(*this);
+          current_array_type = NULL;
+        } else {
+          accept_without_prefix(fb_symbol);
+        }
         s4o.print(".,");
         symbol->accept(*this);
     }
@@ -1404,9 +1414,21 @@ void *visit(fb_invocation_c *symbol) {
   if (vt != search_var_instance_decl_c::external_vt)
     s4o.print("&");
   print_variable_prefix();
-  // For complex FB expressions (like array elements), we need to print them directly
-  // without going through print_getter
-  accept_without_prefix(symbol->fb_name);
+  // For array-of-FB elements, print array name without prefix but keep prefix
+  // active for subscript expressions (so loop variables get wrapped in __GET_VAR)
+  {
+    array_variable_c *fb_array_var = dynamic_cast<array_variable_c *>(symbol->fb_name);
+    if (fb_array_var != NULL) {
+      accept_without_prefix(fb_array_var->subscripted_variable);
+      symbol_c *fb_array_type = search_varfb_instance_type->get_basetype_decl(fb_array_var->subscripted_variable);
+      s4o.print(".value.table");
+      current_array_type = fb_array_type;
+      fb_array_var->subscript_list->accept(*this);
+      current_array_type = NULL;
+    } else {
+      accept_without_prefix(symbol->fb_name);
+    }
+  }
   s4o.print(")");
 
   /* loop through each function parameter, find the variable to which
