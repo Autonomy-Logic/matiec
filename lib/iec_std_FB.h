@@ -1924,6 +1924,13 @@ __end:
 
 #endif // ARDUINO
 
+// Communication blocks (TCP) - Linux runtime targets only.
+// Not available on Arduino. Projects using TCP blocks on Arduino will
+// get a compilation error (undefined TCP_CONNECT type), which is expected.
+#ifndef ARDUINO
+#include "communication.h"
+#endif
+
 // c_blocks.h contains user-defined type definitions needed by all files
 #include "../c_blocks.h"
 

@@ -52,4 +52,5 @@
 {#include "sm_cards.txt" }
 {#include "jaguar.txt" }
 {#include "SL-RP4.txt" }
+{#include "communication.txt" }
 {enable code generation}
