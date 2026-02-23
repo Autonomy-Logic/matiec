@@ -128,6 +128,10 @@
 	{extern IEC_BYTE __IS_GLOBAL_##name##_FORCED();\
     if (!(prefix name.flags & __IEC_FORCE_FLAG || __IS_GLOBAL_##name##_FORCED()))\
 		(*(prefix name.value)) suffix = new_value;}
+#define __SET_EXTERNAL_ARRAY(prefix, arrayname, index, new_value)\
+	{extern IEC_BYTE __IS_GLOBAL_##arrayname##_FORCED();\
+    if (!(prefix arrayname.flags & __IEC_FORCE_FLAG || __IS_GLOBAL_##arrayname##_FORCED()))\
+		(*(prefix arrayname.value)).table[index] = new_value;}
 #define __SET_EXTERNAL_FB(prefix, name, suffix, new_value)\
 	__SET_VAR((*(prefix name)), suffix, new_value)
 #define __SET_LOCATED(prefix, name, suffix, new_value)\
