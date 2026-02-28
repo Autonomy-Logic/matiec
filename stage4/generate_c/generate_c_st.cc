@@ -412,9 +412,24 @@ void *print_setter(symbol_c* symbol,
           // Generate the macro with field as the "name" parameter
           unsigned int vartype = analyse_variable_c::first_nonfb_vardecltype(symbol, scope_);
           
-          if (vartype == search_var_instance_decl_c::external_vt)
-            s4o.print(SET_EXTERNAL);
-          else if (vartype == search_var_instance_decl_c::located_vt)
+if (vartype == search_var_instance_decl_c::external_vt) {
+        symbol_c *array_type = search_varfb_instance_type->get_basetype_decl(array_var->subscripted_variable);
+        s4o.print("__SET_EXTERNAL_ARRAY(");
+        print_variable_prefix();
+        s4o.print(",");
+        accept_without_prefix(array_var->subscripted_variable);
+        s4o.print(",");
+        current_array_type = array_type;
+        array_var->subscript_list->accept(*this);
+        current_array_type = NULL;
+        s4o.print(",");
+        wanted_variablegeneration = expression_vg;
+        print_check_function(type, value, fb_value);
+        s4o.print(")");
+        wanted_variablegeneration = expression_vg;
+        return NULL;
+      }
+      if (vartype == search_var_instance_decl_c::located_vt)
             s4o.print(SET_LOCATED);
           else
             s4o.print(SET_VAR);
